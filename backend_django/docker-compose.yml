@@ -1,0 +1,29 @@
+services:
+  backend-database:
+    image: mysql:8.0
+    container_name: backend-mysql
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    ports:
+      - "23306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  backend-django:
+    image: backend-django
+    container_name: backend-django
+    build: .
+    volumes:
+      - .:/backend
+    ports:
+      - "28000:8000"
+    depends_on:
+      - backend-database
+    env_file:
+      - ./.env
+
+volumes:
+  mysql_data:
