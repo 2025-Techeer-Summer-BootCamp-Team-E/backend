@@ -1,0 +1,5 @@
+Django>=4.0,<5.0
+mysqlclient
+django-environ
+python-dotenv
+djangorestframework==3.15.1
