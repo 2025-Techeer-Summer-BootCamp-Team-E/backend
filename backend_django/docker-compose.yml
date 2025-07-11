@@ -1,4 +1,5 @@
 services:
+  # MySQL 데이터베이스 서비스 설정
   backend-database:
     image: mysql:8.0
     container_name: backend-mysql
@@ -11,19 +12,48 @@ services:
       - "23306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    networks:
+      - backend-net
 
+  # Redis 서비스 설정
+  backend-redis:
+    image: redis:7.0
+    container_name: backend-redis
+    ports:
+      - "26379:6379"
+    networks:
+      - backend-net
+
+  # Django 애플리케이션 서비스 설정
   backend-django:
     image: backend-django
     container_name: backend-django
     build: .
     volumes:
-      - .:/backend
+      - ./backend_django:/backend
     ports:
       - "28000:8000"
     depends_on:
       - backend-database
+      - backend-redis
     env_file:
       - ./.env
+    networks:
+      - backend-net
+    develop:
+      watch:
+        - path: ./backend_django
+          target: /backend
+          action: sync+restart
+        - path: ./requirements.txt
+          target: /backend/requirements.txt
+          action: rebuild
 
+# volume 설정
 volumes:
   mysql_data:
+
+# 컨테이너 네트워크 설정
+networks:
+  backend-net:
+    driver: bridge

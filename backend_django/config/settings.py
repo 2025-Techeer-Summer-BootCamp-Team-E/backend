@@ -35,6 +35,11 @@ SECRET_KEY = env('DJANGO_SECRET_KEY') # django 시크릿키는 env에서 관리
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend-django']
 
+# Django 로컬 개발 환경 포트
+BACKEND_DOMAIN = 'localhost:8000'
+
+# 배포 환경 포트
+# BACKEND_DOMAIN = '백엔드배포사이트주소'
 
 
 # Application definition
@@ -96,6 +101,18 @@ DATABASES = {
         'PORT': env('DB_PORT', default='3306'),  # 기본 MySQL 포트
     }
 }
+
+# Caching : Redis를 임시저장소/캐시 용도로 사용
+# https://docs.djangoproject.com/en/5.2/topics/cache/
+CACHES = {
+    'default': { # default 이름으로 캐시 설정
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': f'redis://{env("REDIS_HOST", default="localhost")}:{env("REDIS_PORT", default="6379")}/1',  # Redis DB
+    }
+    # Redis 설정을 커스텀 하려면 사용
+    # 'OPTIONS': {
+}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
