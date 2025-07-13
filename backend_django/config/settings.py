@@ -53,6 +53,7 @@ INSTALLED_APPS = [
 
     'django_prometheus', # Django Prometheus 추가
     'rest_framework', # Django REST framework 추가
+    'storages', # Django Storages 추가
 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -107,6 +108,23 @@ DATABASES = {
         'PORT': env('DB_PORT', default='3306'),  # 기본 MySQL 포트
     }
 }
+
+
+# S3 기본 설정
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
+AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
+
+# 정적 파일 설정
+STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/static/"
+
+# 미디어 파일 설정 (선택)
+DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
+
 
 # Caching : Redis를 임시저장소/캐시 용도로 사용
 # https://docs.djangoproject.com/en/5.2/topics/cache/
