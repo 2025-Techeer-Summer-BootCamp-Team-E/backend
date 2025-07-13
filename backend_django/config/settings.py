@@ -44,6 +44,9 @@ BACKEND_DOMAIN = 'localhost:8000'
 # OpenAI API 키
 OPENAI_API_KEY = env('OPENAI_API_KEY')
 
+# Runway API 키
+RUNWAY_API_KEY = env('RUNWAY_API_KEY')
+
 # Application definition
 
 INSTALLED_APPS = [

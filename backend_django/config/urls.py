@@ -24,4 +24,5 @@ urlpatterns = [
 
     path('books/', include('books.urls')),  # Books 애플리케이션의 URL 포함
     path('characters/', include('characters.urls')),  # Characters 애플리케이션의
+    path('videos/', include('videos.urls')),  # Videos 애플리케이션의 URL 포함
 ]
