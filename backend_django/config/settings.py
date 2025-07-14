@@ -14,6 +14,8 @@ from pathlib import Path
 import os
 import environ
 
+AUTH_USER_MODEL = 'users.User'
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -50,6 +52,7 @@ INSTALLED_APPS = [
     # API 개발시 생성한 애플리케이션 명시
     'books', # Books 애플리케이션 추가
     'characters', # Characters 애플리케이션 추가
+    'users', # Users 애플리케이션 추가
 
     'django_prometheus', # Django Prometheus 추가
     'rest_framework', # Django REST framework 추가
