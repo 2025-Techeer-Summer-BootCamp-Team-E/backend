@@ -69,6 +69,7 @@ services:
       - "traefik.http.routers.backend-https.entrypoints=websecure"
       - "traefik.http.routers.backend-https.tls=true"
       - "traefik.http.routers.backend-https.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.backend-https.service=django-service"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
       # 리디렉션 미들웨어 정의
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"

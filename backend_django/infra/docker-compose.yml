@@ -3,9 +3,10 @@ services:
     image: traefik:v2.9
     container_name: backend-traefik
     command:
-      - "--api.insecure=false"
+      - "--api.insecure=true"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.dashboard.address=:8090"
       - "--api.dashboard=true"
       - "--entrypoints.websecure.address=:443" # 중요 - Traefik이 HTTPS 요청을 수신할 포트 443을 열음
       # - "--entrypoints.web.http.redirections.entrypoint.to=websecure" # 중요 - HTTP 요청을 HTTPS로 리다이렉트
