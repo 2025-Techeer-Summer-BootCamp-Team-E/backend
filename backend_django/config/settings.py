@@ -35,7 +35,11 @@ DEBUG = env.bool("DEBUG", default=True) # 개발환경에서만 사용
 # Raises Django's ImproperlyConfigured exception if SECRET_KEY not in os.environ
 SECRET_KEY = env('DJANGO_SECRET_KEY') # django 시크릿키는 env에서 관리
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend-django']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend-django', 
+    'epi-log.site',
+    'www.epi-log.site',
+    'grafana.epi-log.site',
+    'prometheus.epi-log.site']
 
 # Django 로컬 개발 환경 포트
 BACKEND_DOMAIN = 'localhost:8000'

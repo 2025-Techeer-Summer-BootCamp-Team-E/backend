@@ -218,5 +218,9 @@ desktop.ini
 # 환경변수 파일
 .env
 
-# 테스트용 API
+# s3test directory
 s3test/
+
+# letsencrypt 인증서
+acme.json
+
