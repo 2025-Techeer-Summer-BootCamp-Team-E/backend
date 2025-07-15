@@ -57,7 +57,7 @@ services:
     #       action: rebuild
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`epi-log.site`)"
+      - "traefik.http.routers.backend.rule=Host(`epi-log.site`, `www.epi-log.site`)"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
@@ -70,12 +70,12 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prom.rule=Host(`prometheus.epi-log.site`)"
-      - "traefik.http.routers.prom.entrypoints=websecure"
-      - "traefik.http.routers.prom.tls.certresolver=letsencrypt"
-      - "traefik.http.services.prom.loadbalancer.server.port=9090"
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.prom.rule=Host(`prometheus.epi-log.site`)"
+    #   - "traefik.http.routers.prom.entrypoints=websecure"
+    #   - "traefik.http.routers.prom.tls.certresolver=letsencrypt"
+    #   - "traefik.http.services.prom.loadbalancer.server.port=9090"
 
     ports:
       - "29090:9090"
@@ -97,12 +97,12 @@ services:
       - grafana_data:/var/lib/grafana # Grafana 데이터 (대시보드 등)
     ports:
       - "23000:3000" # Grafana는 기본적으로 3000번 포트입니다
-    labels:
-      - traefik.enable=true
-      - traefik.http.services.grafana.loadbalancer.server.port=3000
-      - traefik.http.routers.grafana.entrypoints=websecure
-      - traefik.http.routers.grafana.tls.certresolver=letsencrypt
-      - traefik.http.routers.grafana.rule=Host(`grafana.epi-log.site`)
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.services.grafana.loadbalancer.server.port=3000
+    #   - traefik.http.routers.grafana.entrypoints=websecure
+    #   - traefik.http.routers.grafana.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.grafana.rule=Host(`grafana.epi-log.site`)
 
     networks:
       - backend-net
