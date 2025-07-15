@@ -35,8 +35,8 @@ services:
     build: .
     volumes:
       - .:/backend
-      # - ./gcp-key.json:/app/gcp-key.json # GCP veo 키 파일 마운트
-      - /home/ubuntu/gcp-key.json:/app/gcp-key.json # GCP veo 키 파일 절대 경로로 마운트
+      - ./gcp-key.json:/app/gcp-key.json # GCP veo 키 파일 마운트
+      # - /home/ubuntu/gcp-key.json:/app/gcp-key.json # GCP veo 키 파일 절대 경로로 마운트
     ports:
       - "28000:8000"
     depends_on:
