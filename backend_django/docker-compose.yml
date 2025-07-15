@@ -57,10 +57,18 @@ services:
     #       action: rebuild
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`epi-log.site`, `www.epi-log.site`)"
-      - "traefik.http.routers.backend.entrypoints=websecure"
-      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      # HTTP 라우터 설정 (리디렉션 전용)
+      - "traefik.http.routers.backend-http.rule=Host(`epi-log.site`, `www.epi-log.site`)"
+      - "traefik.http.routers.backend-http.entrypoints=web"
+      - "traefik.http.routers.backend-http.middlewares=redirect-to-https"
+      # HTTPS 라우터 설정 (실제 서비스용)
+      - "traefik.http.routers.backend-https.rule=Host(`epi-log.site`, `www.epi-log.site`)"
+      - "traefik.http.routers.backend-https.entrypoints=websecure"
+      - "traefik.http.routers.backend-https.tls=true"
+      - "traefik.http.routers.backend-https.tls.certresolver=letsencrypt"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      # 리디렉션 미들웨어 정의
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
 
   # Prometheus 모니터링 서비스 설정
   backend-prometheus:

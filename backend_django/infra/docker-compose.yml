@@ -9,7 +9,7 @@ services:
       - "--api.dashboard=true"
       - "--entrypoints.websecure.address=:443" # 중요 - Traefik이 HTTPS 요청을 수신할 포트 443을 열음
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure" # 중요 - HTTP 요청을 HTTPS로 리다이렉트
-      - "--entryPoints.web.http.redirections.entrypoint.scheme=https" # 중요 => HTTPS 강제 적용
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https" # 중요 => HTTPS 강제 적용
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true" # 중요 - Let's Encrypt를 사용하여 TLS 인증서를 자동으로 발급받음
       - "--certificatesresolvers.letsencrypt.acme.email=dnjsgml0578@gmail.com" # 중요 - 인증 관련 알림을 받을때 필요, Let's Encrypt에 자동으로 등록됨
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json" # 중요 - 인증서 저장 위치, 해당 경로를 볼륨에 마운팅하여 영구 저장됨
