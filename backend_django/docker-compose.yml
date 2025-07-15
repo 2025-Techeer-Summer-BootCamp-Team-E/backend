@@ -64,12 +64,15 @@ services:
       - "traefik.http.routers.backend-http.rule=Host(`epi-log.site`, `www.epi-log.site`)"
       - "traefik.http.routers.backend-http.entrypoints=web"
       - "traefik.http.routers.backend-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.backend-http.service=django-service" # ✅ 추가
+
       # HTTPS 라우터 설정 (실제 서비스용)
       - "traefik.http.routers.backend-https.rule=Host(`epi-log.site`, `www.epi-log.site`)"
       - "traefik.http.routers.backend-https.entrypoints=websecure"
       - "traefik.http.routers.backend-https.tls=true"
       - "traefik.http.routers.backend-https.tls.certresolver=letsencrypt"
-      - "traefik.http.services.django-service.loadbalancer.server.port=8000"
+      - "traefik.http.routers.backend-https.service=django-service" # ✅ 추가
+
       # 리디렉션 미들웨어 정의
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
 
