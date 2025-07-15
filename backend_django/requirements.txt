@@ -10,3 +10,5 @@ django-prometheus
 requests
 google-cloud-aiplatform
 google-genai
+boto3
+django-storages
