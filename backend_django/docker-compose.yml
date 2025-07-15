@@ -60,21 +60,15 @@ services:
     #       action: rebuild
     labels:
       - "traefik.enable=true"
-      # HTTP 라우터 설정 (리디렉션 전용)
-      - "traefik.http.routers.backend-http.rule=Host(`epi-log.site`, `www.epi-log.site`)"
-      - "traefik.http.routers.backend-http.entrypoints=web"
-      - "traefik.http.routers.backend-http.middlewares=redirect-to-https"
-      - "traefik.http.routers.backend-http.service=django-service" # ✅ 추가
+      # HTTPS 라우터 설정 (Traefik에서 자동으로 HTTP를 HTTPS로 리다이렉트)
+      - "traefik.http.routers.backend-django.rule=Host(`epi-log.site`, `www.epi-log.site`)"
+      - "traefik.http.routers.backend-django.entrypoints=websecure"
+      - "traefik.http.routers.backend-django.tls=true"
+      - "traefik.http.routers.backend-django.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.backend-django.service=backend-django-service"
 
-      # HTTPS 라우터 설정 (실제 서비스용)
-      - "traefik.http.routers.backend-https.rule=Host(`epi-log.site`, `www.epi-log.site`)"
-      - "traefik.http.routers.backend-https.entrypoints=websecure"
-      - "traefik.http.routers.backend-https.tls=true"
-      - "traefik.http.routers.backend-https.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.backend-https.service=django-service" # ✅ 추가
-
-      # 리디렉션 미들웨어 정의
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      # 서비스 포트 설정 - 중요!
+      - "traefik.http.services.backend-django-service.loadbalancer.server.port=8000"
 
   # Prometheus 모니터링 서비스 설정
   backend-prometheus:
