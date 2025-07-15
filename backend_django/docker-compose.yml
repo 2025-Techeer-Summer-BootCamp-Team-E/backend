@@ -49,7 +49,8 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: /app/gcp-key.json # voe key 컨테이너 내부 경로
     networks:
       - backend-net
-      - backend-traefik
+      # - backend-traefik
+    #🐕 개발용
     # develop:
     #   watch:
     #     - path: .
@@ -58,21 +59,23 @@ services:
     #     - path: ./requirements.txt
     #       target: /backend/requirements.txt
     #       action: rebuild
-    labels:
-      - "traefik.enable=true"
-      # HTTP 라우터 설정 (리디렉션 전용)
-      - "traefik.http.routers.backend-http.rule=Host(`epi-log.site`, `www.epi-log.site`)"
-      - "traefik.http.routers.backend-http.entrypoints=web"
-      - "traefik.http.routers.backend-http.middlewares=redirect-to-https"
-      # HTTPS 라우터 설정 (실제 서비스용)
-      - "traefik.http.routers.backend-https.rule=Host(`epi-log.site`, `www.epi-log.site`)"
-      - "traefik.http.routers.backend-https.entrypoints=websecure"
-      - "traefik.http.routers.backend-https.tls=true"
-      - "traefik.http.routers.backend-https.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.backend-https.service=django-service"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
-      # 리디렉션 미들웨어 정의
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+    # ⭐️ 배포용
+    # labels:
+    #   - "traefik.enable=true"
+    #   # HTTP 라우터 설정 (리디렉션 전용)
+    #   - "traefik.http.routers.backend-http.rule=Host(`epi-log.site`, `www.epi-log.site`)"
+    #   - "traefik.http.routers.backend-http.entrypoints=web"
+    #   - "traefik.http.routers.backend-http.middlewares=redirect-to-https"
+    #   # HTTPS 라우터 설정 (실제 서비스용)
+    #   - "traefik.http.routers.backend-https.rule=Host(`epi-log.site`, `www.epi-log.site`)"
+    #   - "traefik.http.routers.backend-https.entrypoints=websecure"
+    #   - "traefik.http.routers.backend-https.tls=true"
+    #   - "traefik.http.routers.backend-https.tls.certresolver=letsencrypt"
+    #   - "traefik.http.routers.backend-https.service=django-service"
+    #   - "traefik.http.services.backend.loadbalancer.server.port=8000"
+    #   # 리디렉션 미들웨어 정의
+    #   - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
 
   # Prometheus 모니터링 서비스 설정
   backend-prometheus:
@@ -93,7 +96,7 @@ services:
       - "29090:9090"
     networks:
       - backend-net
-      - backend-traefik
+      # - backend-traefik
 
   # Grafana 모니터링 서비스 설정
   backend-grafana:
@@ -118,7 +121,7 @@ services:
 
     networks:
       - backend-net
-      - backend-traefik
+      # - backend-traefik
 
 # volume 설정
 volumes:
@@ -129,5 +132,5 @@ volumes:
 networks:
   backend-net:
     driver: bridge
-  backend-traefik:
-    external: true # Traefik 네트워크를 외부에서 관리하도록 설정,
+  # backend-traefik:
+  # external: true # Traefik 네트워크를 외부에서 관리하도록 설정,

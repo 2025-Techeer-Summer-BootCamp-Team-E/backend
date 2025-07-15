@@ -35,20 +35,31 @@ DEBUG = env.bool("DEBUG", default=True) # 개발환경에서만 사용
 # Raises Django's ImproperlyConfigured exception if SECRET_KEY not in os.environ
 SECRET_KEY = env('DJANGO_SECRET_KEY') # django 시크릿키는 env에서 관리
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '13.209.163.154',         # EC2 퍼블릭 IP
-    'epi-log.site',
-    'www.epi-log.site',
-    '.epi-log.site',          # 서브도메인 전체 허용 (예: grafana.epi-log.site)
-]
+# 개발용
+ALLOWED_HOSTS = ['*']
+
+# ⭐️배포용
+# ALLOWED_HOSTS = [
+#     'localhost',
+#     '127.0.0.1',
+#     '13.209.163.154',         # EC2 퍼블릭 IP
+#     'backend-django',
+#     'epi-log.site',
+#     'www.epi-log.site',
+#     '.epi-log.site',          # 서브도메인 전체 허용 (예: grafana.epi-log.site)
+# ]
 
 # Django 로컬 개발 환경 포트
 BACKEND_DOMAIN = 'localhost:8000'
 
-# 배포 서버
+# ⭐️배포 서버
 # BACKEND_DOMAIN = 'epi-log.site'
+
+# ⭐️배포 서버에서 HTTPS를 사용하려면 아래 주석을 해제
+# SECURE_SSL_REDIRECT = True
+# SESSION_COOKIE_SECURE = True
+# CSRF_COOKIE_SECURE = True
+
 
 # OpenAI API 키
 OPENAI_API_KEY = env('OPENAI_API_KEY')
