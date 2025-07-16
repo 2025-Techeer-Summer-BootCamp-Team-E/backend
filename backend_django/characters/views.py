@@ -105,21 +105,29 @@ class ScriptGenerateView(APIView):
         try:
             scene_texts = parse_scene_list(raw_text)
             generated_scenes = [
-                {
-                    "sceneId": scene.get("scene"),
-                    "lines": scene.get("lines"),
-                    "video_job_id": f"job-{uuid.uuid4()}"
-                }
-                for scene in scene_texts
-            ]
+        {
+        "sceneId": scene.get("scene"),
+        "background": scene.get("background"),
+        "mood": scene.get("mood"),
+        "style": scene.get("style"),
+        "camera": scene.get("camera"),
+        "soundtrack": scene.get("soundtrack"),
+        "characters": scene.get("characters"),
+        "lines": scene.get("lines"),
+        "rewriting_prompt": scene.get("rewriting_prompt"),
+        "video_job_id": f"job-{uuid.uuid4()}"
+        }
+        for scene in scene_texts
+]
+
 
             cache_key = f"script:{character_id}"
             script_cache = caches['script_cache']
             script_cache.set(cache_key, generated_scenes, timeout=600)
 
             return Response({
-                "characterId": character_id,
-                "scenes": generated_scenes
+            "characterId": character_id,
+            "scenes": generated_scenes  # 이제는 veo_prompt까지 포함된 전체 구조
             }, status=201)
 
         except Exception as e:
