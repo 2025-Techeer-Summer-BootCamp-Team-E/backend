@@ -59,7 +59,8 @@ ALLOWED_HOSTS = [
 #     'backend-django',         # Docker 컨테이너 이름
 # ]
 
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# ⭐️ 배포용
+# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Django 로컬 개발 환경 포트
 BACKEND_DOMAIN = 'localhost:8000'

@@ -29,54 +29,87 @@ def generate_scenes_with_gpt(main_character, sub_characters, scene_count):
 
     # 프롬프트 구성
     prompt = f"""
-다음은 소설 정보입니다.
+Here is the information about a novel:
 
-[소설 정보]
-제목: {book_title}
-내용: {book_content}
+[Novel]
+Title: {book_title}
+Content: {book_content}
 
-다음은 브이로그 영상의 주인공과 조연들입니다.
+[Main Character]
+Name: {main_name}
+Age: {age}
+Gender: {gender}
+Description: {description}
 
-[주인공]
-이름: {main_name}
-나이: {age}
-성별: {gender}
-설명: {description}
+[Supporting Characters]
+{sub_info if sub_info else "None"}
 
-[조연 등장인물]
-{sub_info if sub_info else "없음"}
+Instructions:
 
-요청 사항:
-- 총 {scene_count}개의 장면을 만들어줘.
-- 각 장면은 약 10초 분량이며, 캐릭터들의 대사로만 구성해줘.
-- 한 장면에는 주인공의 독백이거나, 주인공과 조연 간의 짧은 대화가 포함될 수 있어.
-- 출력은 JSON 배열 형식으로 해줘.
-- 꼭 유효한 JSON 형식만 출력해줘.
-- 설명 없이 JSON만 순수하게 출력해줘. JSON 바깥에 문장은 넣지 마.
-- 문자열은 반드시 큰따옴표(")로 감싸줘.
-- JSON 형식이 틀리면 나는 에러가 나서 실패하니까, 꼭 문법을 맞춰줘.
-- 각 장면은 다음과 같은 구조로 작성해줘:
+- Generate {scene_count} scenes.
+- Each scene should be approximately 8 seconds long and include rich, compressed visual descriptions suitable for video generation.
+- Output should be a JSON array with the following fields:
 
-형식 예시:
+  - scene: scene number
+  - background: visual description of location and time (in English)
+  - mood: emotional atmosphere (in English)
+  - style: visual style (e.g., cinematic, anime-style)
+  - camera: camera movement or framing (e.g., tracking shot, zoom-in)
+  - soundtrack: description of background music and sound effects (in English)
+  - characters: list of characters, each with name, appearance, expression, and action (all in English)
+  - lines: list of dialogues. Each line includes:
+    - speaker: name
+    - line_en: dialogue in English
+    - line_ko: dialogue translated in Korean
+  - rewriting_prompt: a single, richly detailed English description (At least 400 characters and less than 500 characters).  
+  It should include:
+  - the visual background (time, place, weather),
+  - the main character’s appearance, expression, and action,
+  - the mood or emotional tone,
+  - the camera framing or motion (e.g., tracking shot, zoom-in),
+  - and the soundtrack or ambient sounds.  
+  This should be written as **one continuous, vivid sentence** for video generation.  
+
+Output rules:
+- Only return pure, valid JSON. No explanations or markdown.
+- All strings must be enclosed in double quotes (").
+- The JSON structure must be strictly correct.
+
+Example format:
+
 [
-{{
+  {{
     "scene": 1,
+    "background": "A misty fishing village at dawn",
+    "mood": "Lonely and quiet",
+    "style": "cinematic",
+    "camera": "tracking shot from behind",
+    "soundtrack": "soft piano melody with ambient sea waves",
+    "characters": [
+      {{
+        "name": "Santiago",
+        "appearance": "Slim, weathered face, old clothes",
+        "expression": "determined gaze",
+        "action": "loads supplies onto the boat"
+      }}
+    ],
     "lines": [
-        {{ "speaker": "산티아고", "line": "오늘도 나는 바다에 나간다." }},
-        {{ "speaker": "마르틴", "line": "무사히 다녀오세요." }}
-    ]
-}},
-...
+      {{
+        "speaker": "Santiago",
+        "line_en": "Once again, I head out to the sea.",
+        "line_ko": "오늘도 나는 바다에 나간다."
+      }}
+    ],
+    "rewriting_prompt": "A man loads a boat in a misty fishing village at dawn. Cinematic. Tracking shot. Ambient sea sound and soft piano."
+  }}
 ]
-
-각 장면은 위 형식처럼 JSON 배열로 묶어줘. 장면 번호는 "scene": 1, 2, 3... 으로 명시해줘.
-
 """
+
 
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
+        temperature=0.9,
     )
 
     content = response.choices[0].message.content
