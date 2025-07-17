@@ -25,6 +25,9 @@ class Video(models.Model):
     # 객체가 처음 생성될 때 자동으로 현재 시간이 기록되도록 합니다.
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creation Timestamp")
 
+    # is_bookmarked: 북마크 여부 (0: 북마크 안 함, 1: 북마크)
+    is_bookmarked = models.BooleanField(default=False, verbose_name="Is Bookmarked")
+
     # Meta 클래스: 모델의 메타데이터 옵션을 정의합니다.
     class Meta:
         # 사실 여기는 관리자페이지 아니면 있어야 하는 메소드는 아닐거같긴 합니다 .
