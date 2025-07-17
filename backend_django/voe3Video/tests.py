@@ -1,6 +1,7 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 from unittest.mock import patch, MagicMock, ANY
+from django.urls import reverse
 from .models import Video
 import json
 import uuid
@@ -47,12 +48,11 @@ class VideoModelTest(TestCase):
 class VideoAPITest(TestCase):
     # 각 테스트 메서드 실행 전에 호출되는 설정 메서드
     def setUp(self):
-        # API 클라이언트를 초기화합니다. 이 클라이언트를 통해 API 엔드포인트에 요청을 보냅니다.
         self.client = APIClient()
-        # 비디오 생성 API의 URL을 설정합니다.
-        self.generate_url = '/voe3Video/generate/'
-        # 비디오 목록 조회 API의 URL을 설정합니다.
-        self.list_url = '/voe3Video/videos/'
+        self.generate_url = reverse('generate_video')
+        self.list_url = reverse('list_videos')
+        self.toggle_bookmark_url_name = 'toggle_bookmark'
+        self.list_bookmarked_url = reverse('list_bookmarked_videos')
 
     # 테스트 케이스: 비디오 생성 API 성공 시나리오
     # 목적: 유효한 데이터로 비디오 생성 API를 호출했을 때, 성공적으로 비디오가 생성되고 데이터베이스에 저장되며, 올바른 응답을 반환하는지 확인합니다.
@@ -178,6 +178,104 @@ class VideoAPITest(TestCase):
 
         # 예상 결과:
         # 1. 응답 상태 코드가 200 (OK)이어야 합니다.
-        self.assertEqual(response.status_code, 200)
         # 2. 응답 데이터의 길이가 0 (빈 목록)이어야 합니다.
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 0)
+
+    # 테스트 케이스: 북마크 토글 API 성공 시나리오
+    # 목적: 비디오의 북마크 상태를 성공적으로 토글하는지 확인합니다.
+    def test_toggle_bookmark_api_success(self):
+        # 1. 테스트용 비디오 생성 (초기 is_bookmarked는 False)
+        video = Video.objects.create(
+            video_uri="gs://test_bucket/toggle_video.mp4",
+            prompt="Toggle test",
+            title="Toggle Video",
+            user_id="user_toggle"
+        )
+        self.assertFalse(video.is_bookmarked) # 초기 상태 확인
+
+        # 2. 북마크 토글 API 호출 (PATCH 요청)
+        response = self.client.patch(reverse(self.toggle_bookmark_url_name, args=[video.id]))
+
+        # 3. 응답 확인
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['is_bookmarked']) # 응답에서 is_bookmarked가 True인지 확인
+
+        # 4. 데이터베이스에서 비디오 객체를 다시 로드하여 상태 확인
+        video.refresh_from_db()
+        self.assertTrue(video.is_bookmarked) # 데이터베이스에서 is_bookmarked가 True인지 확인
+
+        # 5. 다시 토글하여 False로 변경
+        response = self.client.patch(reverse(self.toggle_bookmark_url_name, args=[video.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['is_bookmarked']) # 응답에서 is_bookmarked가 False인지 확인
+
+        video.refresh_from_db()
+        self.assertFalse(video.is_bookmarked) # 데이터베이스에서 is_bookmarked가 False인지 확인
+
+    # 테스트 케이스: 북마크 토글 API - 존재하지 않는 비디오
+    # 목적: 존재하지 않는 비디오 ID로 북마크 토글을 시도했을 때 404 응답을 반환하는지 확인합니다.
+    def test_toggle_bookmark_api_not_found(self):
+        # 존재하지 않는 비디오 ID로 요청
+        non_existent_id = 99999
+        response = self.client.patch(reverse(self.toggle_bookmark_url_name, args=[non_existent_id]))
+
+        # 404 응답 확인
+        self.assertEqual(response.status_code, 404)
+
+    # 테스트 케이스: 북마크된 비디오 목록 조회 API 성공 시나리오
+    # 목적: 북마크된 비디오만 올바르게 반환하는지 확인합니다.
+    def test_list_bookmarked_videos_api_success(self):
+        # 1. 테스트용 비디오 생성 (일부는 북마크, 일부는 북마크 안 함)
+        Video.objects.create(
+            video_uri="gs://test_bucket/video_not_bookmarked.mp4",
+            prompt="Not bookmarked",
+            title="Video Not Bookmarked",
+            is_bookmarked=False
+        )
+        bookmarked_video1 = Video.objects.create(
+            video_uri="gs://test_bucket/video_bookmarked1.mp4",
+            prompt="Bookmarked 1",
+            title="Video Bookmarked 1",
+            is_bookmarked=True
+        )
+        bookmarked_video2 = Video.objects.create(
+            video_uri="gs://test_bucket/video_bookmarked2.mp4",
+            prompt="Bookmarked 2",
+            title="Video Bookmarked 2",
+            is_bookmarked=True
+        )
+
+        # 2. `generate_signed_url` 함수를 모킹하여 실제 GCS 호출 방지
+        with patch('voe3Video.veo_service.generate_signed_url') as mock_generate_signed_url:
+            mock_generate_signed_url.side_effect = lambda uri: f"http://mock_signed_url_for_{uri.split('/')[-1]}"
+            # 3. 북마크된 비디오 목록 조회 API 호출
+            response = self.client.get(self.list_bookmarked_url)
+
+        # 4. 응답 확인
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 2) # 북마크된 비디오는 2개여야 함
+
+        # 반환된 비디오들이 올바른지 확인 (ID 또는 제목으로)
+        returned_titles = {video['title'] for video in response.data}
+        self.assertIn("Video Bookmarked 1", returned_titles)
+        self.assertIn("Video Bookmarked 2", returned_titles)
+        self.assertNotIn("Video Not Bookmarked", returned_titles)
+
+    # 테스트 케이스: 북마크된 비디오 목록 조회 API (빈 목록 시나리오)
+    # 목적: 북마크된 비디오가 없을 때 빈 목록을 올바르게 반환하는지 확인합니다.
+    def test_list_bookmarked_videos_api_empty(self):
+        # 데이터베이스에 비디오가 없거나, 모두 북마크되지 않은 상태
+        Video.objects.create(
+            video_uri="gs://test_bucket/video_not_bookmarked_empty.mp4",
+            prompt="Not bookmarked empty",
+            title="Video Not Bookmarked Empty",
+            is_bookmarked=False
+        )
+
+        with patch('voe3Video.veo_service.generate_signed_url') as mock_generate_signed_url:
+            mock_generate_signed_url.return_value = "http://mock_signed_url"
+            response = self.client.get(self.list_bookmarked_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0) # 빈 목록이어야 함
