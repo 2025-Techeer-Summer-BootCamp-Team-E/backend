@@ -6,7 +6,8 @@ from django.core.cache import caches
 from .gpt_client import (
     generate_scenes_with_gpt,
     generate_characters_with_gpt,
-    parse_scene_list  # parse_scene_list를 parse_character_list로 rename해도 됨
+    parse_scene_list,
+    parse_character_list
 )
 import uuid
 
@@ -43,7 +44,7 @@ class CharacterConditionalCreateOrListView(APIView):
         # GPT 호출로 캐릭터 생성
         try:
             raw_text = generate_characters_with_gpt(book.title, book.content)
-            character_data_list = parse_scene_list(raw_text)
+            character_data_list = parse_character_list(raw_text)
         except Exception as e:
             return Response({'error': f'GPT 호출 실패: {str(e)}'}, status=500)
 
@@ -103,15 +104,16 @@ class ScriptGenerateView(APIView):
 
         # 파싱 및 Redis 캐시 저장
         try:
-            scene_texts = parse_scene_list(raw_text)
-
-            # ✅ script_id 생성
-            script_id = f"scpt-{uuid.uuid4().hex[:8]}"
+            parsed_result = parse_scene_list(raw_text)
+            
+            # parse_scene_list는 이제 {script_id: "...", scenes: [...]} 형태로 반환
+            script_id = parsed_result.get("script_id")
+            scene_texts = parsed_result.get("scenes", [])
 
             # ✅ scene 구조 생성
             generated_scenes = []
             for scene in scene_texts:
-                scene_id = scene.get("scene")
+                scene_id = scene.get("sceneId")  # "scene" → "sceneId"로 수정
                 generated_scenes.append({
                     "sceneId": scene_id,
                     "background": scene.get("background"),
@@ -121,8 +123,8 @@ class ScriptGenerateView(APIView):
                     "soundtrack": scene.get("soundtrack"),
                     "characters": scene.get("characters"),
                     "lines": scene.get("lines"),
-                    "rewriting_prompt": scene.get("rewriting_prompt"),  # 혹은 veo_prompt
-                    "rewriting_id": f"{script_id}-scene-{scene_id}"
+                    "rewriting_prompt": scene.get("rewriting_prompt"),
+                    "rewriting_id": scene.get("rewriting_id")  # 이미 파싱 함수에서 생성됨
                 })
 
             # ✅ Redis에 script_id 기준으로 저장
