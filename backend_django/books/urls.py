@@ -1,9 +1,9 @@
 from django.urls import path
-from .views import BookFromTextView, BookFromPdfView
+from .views import BookTextUploadView, BookFromPdfView
 
 urlpatterns = [
-    path('text/', BookFromTextView.as_view()),
-    path('pdf/', BookFromPdfView.as_view()),
+    path('text', BookTextUploadView.as_view()),
+    path('pdf', BookFromPdfView.as_view()),
 
 
 ]

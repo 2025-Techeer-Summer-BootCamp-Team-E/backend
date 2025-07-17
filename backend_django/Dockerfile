@@ -9,7 +9,19 @@ WORKDIR /backend
 COPY ./requirements.txt .
 
 # MySQL 클라이언트 및 빌드 도구 설치
-RUN apt-get update && apt-get install -y default-mysql-client build-essential
+# poppler-utils: PDF 파일에서 텍스트 추출을 위한 도구
+# tesseract-ocr, kor, eng: OCR(광학 문자 인식) 도구, korean, english 언어 지원
+# libleptonica-dev: Tesseract의 의존성 라이브러리
+RUN apt-get update && \
+    apt-get install -y \
+    default-mysql-client \
+    build-essential \
+    poppler-utils \
+    tesseract-ocr \
+    libtesseract-dev \
+    libleptonica-dev \
+    tesseract-ocr-kor \
+    tesseract-ocr-eng
 
 # uv를 사용하여 의존성 설치
 RUN pip install uv && uv pip install --system --no-cache-dir -r requirements.txt
