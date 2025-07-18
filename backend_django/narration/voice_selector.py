@@ -4,9 +4,9 @@ from narration.table.tts_voice_map import VOICE_SELECTION_TABLE
 ''' 성별, 나이에 따라서 voice_id를 선택하는 함수'''
 # 어린아이, 청소년, 노인 별로 나이 그룹을 나눔
 def age_to_group(age: int) -> str:
+    # if age <= 10:
+    #     return "child"
     if age <= 10:
-        return "child"
-    elif age <= 19:
         return "teen"
     elif age <= 39:
         return "adult"
