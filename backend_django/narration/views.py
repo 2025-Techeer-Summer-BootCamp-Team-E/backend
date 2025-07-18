@@ -9,6 +9,8 @@ class GenerateVoiceAPIView(APIView):
     """
     테스트용 나레이션 생성 API
     내부적으로 narration_service.generate_narration_for_character() 함수를 사용
+
+    영상 생성시 generate_narration_for_character() 함수를 직접 호출해서 사용
     """
     
     def post(self, request):
