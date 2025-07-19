@@ -137,6 +137,9 @@ DATABASES = {
         'PASSWORD': env('DB_PASSWORD'),
         'HOST': env('DB_HOST'),
         'PORT': env('DB_PORT', default='3306'),  # 기본 MySQL 포트
+        # 'OPTIONS': {
+        #     'charset': 'utf8mb4', 
+        # },
     }
 }
 

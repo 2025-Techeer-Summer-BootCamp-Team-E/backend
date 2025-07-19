@@ -6,7 +6,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from books.pdf_utils import extract_text_from_pdf # pdf 파일에서 텍스트를 추출하는 함수
 from books.gpt_client import summarize_with_gpt # GPT를 이용한 pdf 책 요약 함수
 from books.s3_client import upload_to_s3 # S3에 파일을 업로드하는 함수
-from .serializers import BookCreateSerializer, BookPdfUploadSerializer
+from .serializers import BookCreateSerializer, BookPdfUploadSerializer, BookOfficialResponseSerializer
 from .models import Book
 
 # Create your views here.
@@ -79,4 +79,18 @@ class BookFromPdfView(APIView):
                 "error_code": 500,
                 "message": "PDF 처리 중 오류가 발생했습니다."
             }, status=500)
+
+
+class BookOfficialView(APIView):
+    def get(self, request):
+        # 1. 삭제되지 않은 모든 책 조회 (user_id 검증 없이)
+        #books = Book.objects.filter(is_deleted=False
+        # 1. 삭제되지 않은 모든 책 조회 (존재하는 필드만 선택)
+        books = Book.objects.filter(is_deleted=False).only('id', 'title', 'content')
+        
+        # 2. 응답 데이터 직렬화
+        response_serializer = BookOfficialResponseSerializer(books, many=True)
+        
+        # 3. 성공 응답 반환
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
