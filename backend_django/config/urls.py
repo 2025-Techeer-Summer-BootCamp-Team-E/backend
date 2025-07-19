@@ -36,5 +36,6 @@ urlpatterns = [
     path('narration/', include('narration.urls')),  # Narration 애플리케이션의 URL 포함
 
     # path('s3test/', include('s3test.urls')),  # S3 테스트용 앱의 URL 포함
+    path('', include('django_prometheus.urls'))
 
 ]
