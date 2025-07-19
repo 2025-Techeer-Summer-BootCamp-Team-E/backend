@@ -136,11 +136,29 @@ services:
     networks:
       - backend-net
 
+  backend-portainer:
+    image: portainer/portainer-ce:latest
+    ports:
+      - "29000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.epi-log.site`)"
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.routers.portainer.tls=true"
+      - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+    networks:
+      - backend-net
+
 # volume 설정
 volumes:
   mysql_data:
   grafana_data:
   traefik-certificates: # 중요 - Traefik 인증서 저장소
+  portainer_data:
 
 # 컨테이너 네트워크 설정
 networks:
