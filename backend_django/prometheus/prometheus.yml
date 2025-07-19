@@ -6,15 +6,18 @@ scrape_configs:
   # 메트릭 수집 설정
   - job_name: "backend-prometheus-data" #프로메테우스 "job_name" 이름 (이건 원하시는거 아무거나 해도 차이가 없습니다)
     metrics_path: "/metrics" #메트릭을 수집할 경로. 기본적으로 /metrics 입니다.
+    scheme: http #Prometheus는 HTTP로 실행됨
     static_configs: #메트릭 수집 설정
       - targets: ["backend-prometheus:9090"] #메트릭을 수집하려는 타겟. <host>:<ip> 형식으로 합니다. 도커에서는 <서비스_이름>:<ip> 입니다.
 
   - job_name: "backend-django" #장고 애플리케이션 메트릭 수집 설정
     metrics_path: "/metrics" #장고 애플리케이션 메트릭 경로
+    scheme: http #Django는 HTTP로 실행됨 (HTTPS 아님)
     static_configs:
       - targets: ["backend-django:8000"] #장고 애플리케이션 서비스 이름과 포트
 
   - job_name: "backend-cadvisor" #컨테이너 리소스 모니터링
     metrics_path: "/metrics" #cAdvisor 메트릭 경로
+    scheme: http #cAdvisor는 HTTP로 실행됨
     static_configs:
       - targets: ["backend-cadvisor:8080"] #cAdvisor 서비스 이름과 포트
