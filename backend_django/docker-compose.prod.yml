@@ -78,6 +78,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.prom.rule=Host(`prometheus.epi-log.site`)"
       - "traefik.http.routers.prom.entrypoints=websecure"
+      - "traefik.http.routers.prom.tls=true"
       - "traefik.http.routers.prom.tls.certresolver=letsencrypt"
       - "traefik.http.services.prom.loadbalancer.server.port=9090"
 
@@ -101,11 +102,12 @@ services:
     ports:
       - "23000:3000" # Grafana는 기본적으로 3000번 포트입니다
     labels:
-      - traefik.enable=true
-      - traefik.http.services.grafana.loadbalancer.server.port=3000
-      - traefik.http.routers.grafana.entrypoints=websecure
-      - traefik.http.routers.grafana.tls.certresolver=letsencrypt
-      - traefik.http.routers.grafana.rule=Host(`grafana.epi-log.site`)
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.epi-log.site`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
     networks:
       - backend-net
@@ -131,6 +133,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - traefik-certificates:/letsencrypt # 중요
+    networks:
+      - backend-net
 
 # volume 설정
 volumes:
