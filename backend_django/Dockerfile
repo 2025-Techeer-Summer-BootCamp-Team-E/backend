@@ -34,7 +34,7 @@ RUN apt-get update && \
 
 # 소스 코드 복사
 COPY . .
-COPY .env .env
 
-# 기본 실행 명령
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"] 
+
+# 기본 실행 명령 (환경변수에 따라 설정 파일 선택)
+CMD ["sh", "-c", "python manage.py runserver 0.0.0.0:8000"] 
