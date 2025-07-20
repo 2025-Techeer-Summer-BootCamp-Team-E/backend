@@ -43,3 +43,11 @@ class BookVideoResponseSerializer(serializers.Serializer):
     character_id=serializers.IntegerField(source='character.id')
     video_url = serializers.URLField(source='video_uri') # voe3Video 필드명
     thumbnail_url = serializers.URLField()
+
+class BookCharacterResponseSerializer(serializers.Serializer):
+    character_id = serializers.IntegerField(source='id')
+    character_name = serializers.CharField(source='characterName')  # camelCase 필드명
+    is_main = serializers.BooleanField(source='isMain')      
+    age = serializers.IntegerField()
+    gender = serializers.CharField()
+    character_description = serializers.CharField(source='characterDescription')  
