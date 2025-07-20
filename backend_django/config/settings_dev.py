@@ -52,6 +52,30 @@ ALLOWED_HOSTS = [
 
 ]
 
+# Swagger 페이지는 인증 필터에 걸리지 않음
+SWAGGER_EXEMPT_URLS = [
+    '/swagger/',
+    '/redoc/',
+    '/swagger.json',
+    '/swagger.yaml',
+    '/metrics',       # Prometheus
+    '/static/',       # 정적 파일
+    '/users/login/',  # 로그인 페이지 자체
+    # Swagger에서 테스트시 인증 필터에 걸리지 않으려면..
+    # '/books/' # books 관련 url은 통과
+    # '/chracters/' # chracters 관련 url은 통과
+    # '/narration/' # narration 관련 url은 통과
+    # '/videos/' # videos 관련 url은 통과
+    # '/videos2/' # videos 관련 url은 통과
+    # '/voe3Video/' # voe3(?)Video 관련 url은 통과
+
+
+]
+
+# 로그인 URL 설정
+LOGIN_URL = '/users/login/'
+
+
 
 # Django 로컬 개발 환경 포트
 BACKEND_DOMAIN = 'localhost:8000'
@@ -85,6 +109,8 @@ INSTALLED_APPS = [
     'django_prometheus', # Django Prometheus 추가
     'rest_framework', # Django REST framework 추가
     'storages', # Django Storages 추가
+    'drf_yasg', # Django REST framework Swagger 추가
+    'corsheaders', # CORS 허용 허락
 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -96,15 +122,20 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django_prometheus.middleware.PrometheusBeforeMiddleware',
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'config.middleware.LoginRequiredMiddleware', # 인증 필터 미들웨어
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_prometheus.middleware.PrometheusAfterMiddleware'
 ]
+CORS_ALLOW_ALL_ORIGINS = True
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+STATIC_URL='static/'
 
 ROOT_URLCONF = 'config.urls'
 
@@ -151,11 +182,11 @@ AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
 AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
 
-# 정적 파일 설정
-STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/static/"
+# 정적 파일 설정 (개발환경에서는 로컬 서빙)
+# STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"  # 개발환경에서는 비활성화
+# STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/static/"  # 개발환경에서는 비활성화
 
-# 미디어 파일 설정 (선택)
+# 미디어 파일 설정 (사용자 업로드 파일은 S3 사용)
 DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
 

@@ -19,6 +19,7 @@ AUTH_USER_MODEL = 'users.User'
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Initialize environment variables
 env = environ.Env(
     # set casting, default value
     DEBUG=(bool, False)

@@ -17,3 +17,5 @@ pytesseract==0.3.10
 Pillow==10.3.0
 elevenlabs==2.0.0
 gunicorn==21.2.0
+drf-yasg>=1.21.7
+django-cors-headers>=3.13.0
