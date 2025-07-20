@@ -70,3 +70,7 @@ def signup(request):
         "form": form,
     }
     return render(request, "users/signup.html", context)
+
+def temp_view(request):
+    """임시 페이지 뷰"""
+    return render(request, "users/temp.html")
