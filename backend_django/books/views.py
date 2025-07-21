@@ -1,8 +1,11 @@
+# books/views.py
+
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated  # JWT 인증 추가
 from books.pdf_utils import extract_text_from_pdf # pdf 파일에서 텍스트를 추출하는 함수
 from books.gemini_client import summarize_with_gemini # Gemini를 이용한 pdf 책 요약 함수
 from books.s3_client import upload_to_s3 # S3에 파일을 업로드하는 함수
@@ -24,18 +27,22 @@ from drf_yasg import openapi
 # 책 입력 API 2가지를 정의함
 ''' 책 텍스트로 입력시 book을 생성하는 API '''
 class BookTextUploadView(APIView):
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
+    
     @swagger_auto_schema(
-        operation_description="텍스트로 책을 생성합니다.",
+        operation_description="텍스트로 책을 생성합니다. (JWT 인증 필요)",
         request_body=BookCreateSerializer,
         responses={
             201: BookSuccessResponseSerializer,
-            400: BookErrorResponseSerializer
+            400: BookErrorResponseSerializer,
+            401: openapi.Response(description="인증 필요")
         },
         tags=['책 관리']
     )
     def post(self, request):
         serializer = BookCreateSerializer(data=request.data)
         if serializer.is_valid():
+            # 책 생성 (user 외래키 없음)
             book = serializer.save()
             return Response({
                 "book_id": book.id,
@@ -46,15 +53,17 @@ class BookTextUploadView(APIView):
         return Response({
             "status": "error",
             "error_code": 400,
-            "message": "입력한 정보 형식이 올바르지 않습니다."
+            "message": "입력한 정보 형식이 올바르지 않습니다.",
+            "details": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
     
 
 class BookFromPdfView(APIView):
     parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
 
     @swagger_auto_schema(
-        operation_description="""PDF 파일을 업로드하여 책을 생성합니다.
+        operation_description="""PDF 파일을 업로드하여 책을 생성합니다. (JWT 인증 필요)
         
         처리 과정:
         1. PDF에서 텍스트 추출 (텍스트 기반 또는 OCR)
@@ -64,6 +73,7 @@ class BookFromPdfView(APIView):
         
         가능한 오류:
         - 400: PDF 파일 누락, 잘못된 형식
+        - 401: 인증 필요
         - 500: PDF 파싱 실패, API 오류, S3 업로드 실패
         """,
         manual_parameters=[
@@ -85,12 +95,14 @@ class BookFromPdfView(APIView):
         responses={
             201: BookSuccessResponseSerializer,
             400: BookErrorResponseSerializer,
+            401: openapi.Response(description="인증 필요"),
             500: BookErrorResponseSerializer
         },
         tags=['책 관리']
     )
     def post(self, request):
         print("📝 PDF 업로드 요청 데이터:", request.data)
+        print("👤 요청 사용자:", request.user.username if request.user.is_authenticated else "익명")
         print("📁 파일 목록:", request.FILES)
         print("🔍 요청 헤더 Content-Type:", request.content_type)
         print("🔍 요청 메소드:", request.method)
@@ -135,7 +147,7 @@ class BookFromPdfView(APIView):
             pdf_url = upload_to_s3(pdf_file)
             print(f"🔗 S3 업로드 완료: {pdf_url}")
 
-            # 4. DB 저장
+            # 4. DB 저장 (user 외래키 없음)
             print("💾 DB 저장 시작...")
             book = Book.objects.create(
                 title=title,
@@ -165,31 +177,37 @@ class BookFromPdfView(APIView):
 
 
 class BookOfficialView(APIView):
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
+    
     @swagger_auto_schema(
-        operation_description="삭제되지 않은 모든 책 목록을 조회합니다.",
+        operation_description="삭제되지 않은 모든 책 목록을 조회합니다. (JWT 인증 필요)",
         responses={
             200: BookOfficialResponseSerializer(many=True),
+            401: openapi.Response(description="인증 필요"),
             500: BookErrorResponseSerializer
         },
         tags=['책 관리']
     )
     def get(self, request):
-        # 1. 삭제되지 않은 모든 책 조회 (user_id 검증 없이)
-        #books = Book.objects.filter(is_deleted=False
-        # 1. 삭제되지 않은 모든 책 조회 (존재하는 필드만 선택)
+        # 삭제되지 않은 모든 책 조회 (사용자별 필터링 없음)
         books = Book.objects.filter(is_deleted=False).only('id', 'title', 'content')
         
-        # 2. 응답 데이터 직렬화
+        print(f"📚 인증된 사용자 {request.user.username}이 책 {books.count()}개 조회")
+        
+        # 응답 데이터 직렬화
         response_serializer = BookOfficialResponseSerializer(books, many=True)
         
-        # 3. 성공 응답 반환
+        # 성공 응답 반환
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 class BookVideosView(APIView):
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
+    
     @swagger_auto_schema(
-        operation_description="특정 책의 모든 캐릭터들의 비디오 목록을 조회합니다.",
+        operation_description="특정 책의 모든 캐릭터들의 비디오 목록을 조회합니다. (JWT 인증 필요)",
         responses={
             200: BookVideoResponseSerializer(many=True),
+            401: openapi.Response(description="인증 필요"),
             404: openapi.Response(
                 description="책을 찾을 수 없음",
                 examples={"application/json": {
@@ -204,16 +222,18 @@ class BookVideosView(APIView):
     )
     def get(self, request, book_id):
         try:
-            # 1. 책 존재 여부 확인
+            # 책 존재 여부 확인 (사용자별 필터링 없음)
             book = Book.objects.get(id=book_id, is_deleted=False)
             
-            # 2. 해당 책의 캐릭터들 조회
+            print(f"📚 인증된 사용자 {request.user.username}이 책 '{book.title}' 비디오 조회")
+            
+            # 해당 책의 캐릭터들 조회
             characters = book.characters.filter(is_deleted=False)
 
-            # 3. 캐릭터들의 비디오들 조회
+            # 캐릭터들의 비디오들 조회
             videos = Video.objects.filter(character__in=characters)
 
-            # 4. 응답 데이터 직렬화
+            # 응답 데이터 직렬화
             serializer = BookVideoResponseSerializer(videos, many=True)
             return Response(serializer.data, status=200)
             
@@ -231,10 +251,13 @@ class BookVideosView(APIView):
             }, status=500)
 
 class BookCharactersView(APIView):
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
+    
     @swagger_auto_schema(
-        operation_description="특정 책의 모든 캐릭터 목록을 조회합니다.",
+        operation_description="특정 책의 모든 캐릭터 목록을 조회합니다. (JWT 인증 필요)",
         responses={
             200: BookCharacterResponseSerializer(many=True),
+            401: openapi.Response(description="인증 필요"),
             404: openapi.Response(
                 description="책을 찾을 수 없음",
                 examples={"application/json": {
@@ -249,13 +272,15 @@ class BookCharactersView(APIView):
     )
     def get(self, request, book_id): 
         try:
-            # 1. 책 존재 여부 확인
+            # 책 존재 여부 확인 (사용자별 필터링 없음)
             book = Book.objects.get(id=book_id, is_deleted=False)
             
-            # 2. 해당 책의 캐릭터들 조회
+            print(f"📚 인증된 사용자 {request.user.username}이 책 '{book.title}' 캐릭터 조회")
+            
+            # 해당 책의 캐릭터들 조회
             characters = book.characters.filter(is_deleted=False)
 
-            # 3. 응답 데이터 직렬화
+            # 응답 데이터 직렬화
             serializer = BookCharacterResponseSerializer(characters, many=True)
             return Response(serializer.data, status=200)  
             
