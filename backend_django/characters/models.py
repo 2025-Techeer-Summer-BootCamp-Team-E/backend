@@ -2,6 +2,7 @@ from django.db import models
 from books.models import Book # Book 모델의 book_id 속성을 사용하기 위해 호출
 
 # Create your models here.
+'''캐릭터 모델 정의'''
 class Character(models.Model):
     # Character 모델의 속성 정의
     
@@ -21,3 +22,18 @@ class Character(models.Model):
 
     def __str__(self):
         return f"{self.characterName} ({self.book.title})"
+
+
+
+'''캐릭터_장면 모델 정의'''
+class CharacterScene(models.Model):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name='scenes')
+    scene_content = models.TextField(max_length=500, null=False, blank=False)
+    start_page = models.IntegerField(null=False, blank=False)
+    finish_page = models.IntegerField(null=False, blank=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_deleted = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.character.characterName} - 장면 {self.scene_number}"
