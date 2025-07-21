@@ -51,3 +51,16 @@ class BookCharacterResponseSerializer(serializers.Serializer):
     age = serializers.IntegerField()
     gender = serializers.CharField()
     character_description = serializers.CharField(source='characterDescription')  
+
+# Swagger 문서화를 위한 응답 Serializer들
+class BookErrorResponseSerializer(serializers.Serializer):
+    status = serializers.CharField(help_text="에러 상태")
+    error_code = serializers.IntegerField(help_text="에러 코드")
+    message = serializers.CharField(help_text="에러 메시지")
+    details = serializers.DictField(help_text="상세 에러 정보", required=False)
+
+class BookSuccessResponseSerializer(serializers.Serializer):
+    book_id = serializers.IntegerField(help_text="책 ID")
+    title = serializers.CharField(help_text="책 제목")
+    content = serializers.CharField(help_text="책 내용 요약")
+    pdf_url = serializers.CharField(help_text="PDF 파일 URL", allow_null=True)  
