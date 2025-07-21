@@ -33,7 +33,7 @@ services:
     image: backend-django
     container_name: backend-django
     build: .
-    command: python manage.py runserver 0.0.0.0:8000
+    command: sh -c "uv pip install --system --no-cache-dir -r requirements.txt && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/backend
       - ./gcp-key.json:/app/gcp-key.json # GCP veo 키 파일 마운트
