@@ -56,6 +56,9 @@ CSRF_COOKIE_SECURE = False
 # OpenAI API 키
 OPENAI_API_KEY = env('OPENAI_API_KEY')
 
+# Gemini API 키
+GEMINI_API_KEY = env('GEMINI_API_KEY')
+
 # Runway API 키
 RUNWAY_API_KEY = env('RUNWAY_API_KEY')
 
