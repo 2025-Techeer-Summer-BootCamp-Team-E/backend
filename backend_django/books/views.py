@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
 from books.pdf_utils import extract_text_from_pdf # pdf 파일에서 텍스트를 추출하는 함수
-from books.gpt_client import summarize_with_gpt # GPT를 이용한 pdf 책 요약 함수
+from books.gemini_client import summarize_with_gemini # Gemini를 이용한 pdf 책 요약 함수
 from books.s3_client import upload_to_s3 # S3에 파일을 업로드하는 함수
 from .serializers import BookCreateSerializer, BookPdfUploadSerializer, BookOfficialResponseSerializer, BookVideoResponseSerializer,  BookCharacterResponseSerializer 
 from .models import Book
@@ -12,7 +12,6 @@ from voe3Video.models import Video
 # Create your views here.
 
 # 책 입력 API 2가지를 정의함
-# 나중에 구현할 기능이기에 추후에 수정이 반드시 필요!!
 ''' 책 텍스트로 입력시 book을 생성하는 API '''
 class BookTextUploadView(APIView):
     def post(self, request):
@@ -36,34 +35,59 @@ class BookFromPdfView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
+        print("📝 PDF 업로드 요청 데이터:", request.data)
+        print("📁 파일 목록:", request.FILES)
+        print("🔍 요청 헤더 Content-Type:", request.content_type)
+        print("🔍 요청 메소드:", request.method)
+        
+        # 파일 업로드 상세 디버깅
+        if 'pdf' in request.FILES:
+            pdf_file = request.FILES['pdf']
+            print(f"✅ PDF 파일 감지: {pdf_file.name}, 크기: {pdf_file.size} bytes")
+        else:
+            print("❌ PDF 파일이 request.FILES에 없습니다.")
+            print("🔍 사용 가능한 키들:", list(request.FILES.keys()))
+        
         serializer = BookPdfUploadSerializer(data=request.data)
         if not serializer.is_valid():
+            print("❌ Serializer 검증 실패:", serializer.errors)
             return Response({
                 "status": "error",
                 "error_code": 400,
-                "message": "입력 형식이 올바르지 않습니다."
+                "message": "입력 형식이 올바르지 않습니다.",
+                "details": serializer.errors  # 구체적인 오류 정보 추가
             }, status=400)
 
         title = serializer.validated_data['title']
         pdf_file = serializer.validated_data['pdf']
+        
+        print(f"✅ 검증 완료 - 제목: {title}, 파일명: {pdf_file.name}")
 
         try:
             # 1. PDF 텍스트 추출
+            print("📖 PDF 텍스트 추출 시작...")
             extracted_text = extract_text_from_pdf(pdf_file)
+            print(f"📄 추출된 텍스트 길이: {len(extracted_text)} 문자")
 
-            # 2. GPT 요약
-            summary = summarize_with_gpt(extracted_text)
+            # 2. Gemini 요약
+            print("🤖 Gemini API 요약 시작...")
+            summary = summarize_with_gemini(extracted_text)
+            print(f"📝 요약 완료: {len(summary)} 문자")
 
             # 3. S3 업로드 => pdf_URL을 얻어냄
+            print("☁️ S3 업로드 시작...")
             pdf_file.seek(0)
-            pdf_url = upload_to_s3(pdf_file)  # 구현 안 했으면 pdf_url = None 로 대체 가능
+            pdf_url = upload_to_s3(pdf_file)
+            print(f"🔗 S3 업로드 완료: {pdf_url}")
 
             # 4. DB 저장
+            print("💾 DB 저장 시작...")
             book = Book.objects.create(
                 title=title,
                 content=summary,
                 pdf_url=pdf_url
             )
+            print(f"✅ 책 생성 완료 - ID: {book.id}")
 
             return Response({
                 "book_id": book.id,
@@ -73,11 +97,15 @@ class BookFromPdfView(APIView):
             }, status=201)
 
         except Exception as e:
-            print("[ERROR]", e)
+            print(f"[ERROR] PDF 처리 중 오류 발생: {str(e)}")
+            print(f"[ERROR] 오류 타입: {type(e).__name__}")
+            import traceback
+            print(f"[ERROR] 상세 스택 트레이스:\n{traceback.format_exc()}")
+            
             return Response({
                 "status": "error",
                 "error_code": 500,
-                "message": "PDF 처리 중 오류가 발생했습니다."
+                "message": f"PDF 처리 중 오류가 발생했습니다: {str(e)}"
             }, status=500)
 
 

@@ -3,15 +3,15 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.core.cache import caches
-from .gpt_client import (
-    generate_scenes_with_gpt,
-    generate_characters_with_gpt,
+from .gemini_client import (
+    generate_scenes_with_gemini,
+    generate_characters_with_gemini,
     parse_scene_list,
     parse_character_list
 )
 import uuid
 
-from .models import Character
+from .models import Character, CharacterScene
 from books.models import Book
 
 ''' 캐릭터 생성 혹은 조회 기능 '''
@@ -28,30 +28,42 @@ class CharacterConditionalCreateOrListView(APIView):
 
         existing_characters = Character.objects.filter(book=book, is_deleted=False)
         if existing_characters.exists():
-            data = [
-                {
+            data = []
+            for character in existing_characters:
+                # 기존 캐릭터의 장면 정보도 함께 조회
+                scenes = CharacterScene.objects.filter(character=character, is_deleted=False)
+                scene_data = [
+                    {
+                        'id': scene.id,
+                        'scene_content': scene.scene_content,
+                        'start_page': scene.start_page,
+                        'finish_page': scene.finish_page,
+                    }
+                    for scene in scenes
+                ]
+                
+                data.append({
                     'id': character.id,
                     'characterName': character.characterName,
                     'isMain': character.isMain,
                     'age': character.age,
                     'gender': character.gender,
                     'characterDescription': character.characterDescription,
-                }
-                for character in existing_characters
-            ]
+                    'scenes': scene_data
+                })
             return Response(data, status=200)
 
-        # GPT 호출로 캐릭터 생성
+        # Gemini API 호출로 캐릭터 생성 (새로운 방식)
         try:
-            raw_text = generate_characters_with_gpt(book.title, book.content)
-            character_data_list = parse_character_list(raw_text)
+            character_data_list = generate_characters_with_gemini(book_id)
         except Exception as e:
-            return Response({'error': f'GPT 호출 실패: {str(e)}'}, status=500)
+            return Response({'error': f'Gemini API 호출 실패: {str(e)}'}, status=500)
 
-        # 캐릭터 저장
+        # 캐릭터 및 장면 저장
         created_characters = []
         for data in character_data_list:
             try:
+                # 캐릭터 생성
                 character = Character.objects.create(
                     characterName=data.get('characterName'),
                     isMain=data.get('isMain', False),
@@ -60,16 +72,35 @@ class CharacterConditionalCreateOrListView(APIView):
                     characterDescription=data.get('characterDescription'),
                     book=book
                 )
+                
+                # 캐릭터 장면 생성
+                scene_data = []
+                scenes = data.get('scenes', [])
+                for scene_info in scenes:
+                    scene = CharacterScene.objects.create(
+                        character=character,
+                        scene_content=scene_info.get('scene_content'),
+                        start_page=scene_info.get('start_page'),
+                        finish_page=scene_info.get('finish_page')
+                    )
+                    scene_data.append({
+                        'id': scene.id,
+                        'scene_content': scene.scene_content,
+                        'start_page': scene.start_page,
+                        'finish_page': scene.finish_page,
+                    })
+                
                 created_characters.append({
                     'id': character.id,
                     'characterName': character.characterName,
                     'isMain': character.isMain,
                     'age': character.age,
                     'gender': character.gender,
-                    'characterDescription': character.characterDescription
+                    'characterDescription': character.characterDescription,
+                    'scenes': scene_data
                 })
             except Exception as e:
-                print(f"⚠️ 캐릭터 저장 실패: {e}")
+                print(f"⚠️ 캐릭터 또는 장면 저장 실패: {e}")
                 continue
 
         return Response(created_characters, status=201)
@@ -85,22 +116,22 @@ class ScriptGenerateView(APIView):
 
         # 장면 개수 결정
         desc_length = len(character.characterDescription)
-        scene_count = 2 if desc_length < 100 else 3 if desc_length < 200 else 4 if desc_length < 400 else 5
+        scene_count = 3
 
         # 조연 캐릭터 정보 수집
         sub_characters = Character.objects.filter(
             book=character.book, isMain=False, is_deleted=False
         ).exclude(id=character.id)
 
-        # GPT 호출
+        # Gemini 호출
         try:
-            raw_text = generate_scenes_with_gpt(
+            raw_text = generate_scenes_with_gemini(
                 main_character=character,
                 sub_characters=sub_characters,
                 scene_count=scene_count,
             )
         except Exception as e:
-            return Response({'error': f'GPT 호출 실패: {str(e)}'}, status=500)
+            return Response({'error': f'Gemini 호출 실패: {str(e)}'}, status=500)
 
         # 파싱 및 Redis 캐시 저장
         try:

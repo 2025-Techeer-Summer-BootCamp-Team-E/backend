@@ -62,14 +62,12 @@ SWAGGER_EXEMPT_URLS = [
     '/static/',       # 정적 파일
     '/users/login/',  # 로그인 페이지 자체
     # Swagger에서 테스트시 인증 필터에 걸리지 않으려면..
-    # '/books/' # books 관련 url은 통과
-    # '/chracters/' # chracters 관련 url은 통과
-    # '/narration/' # narration 관련 url은 통과
-    # '/videos/' # videos 관련 url은 통과
-    # '/videos2/' # videos 관련 url은 통과
-    # '/voe3Video/' # voe3(?)Video 관련 url은 통과
-
-
+    '/books/',        # books 관련 url은 통과
+    '/characters/',   # characters 관련 url은 통과 (오타 수정)
+    '/narration/',    # narration 관련 url은 통과
+    '/videos/',       # videos 관련 url은 통과
+    '/videos2/',      # videos2 관련 url은 통과
+    '/voe3Video/',    # voe3Video 관련 url은 통과
 ]
 
 # 로그인 URL 설정
@@ -83,6 +81,9 @@ BACKEND_DOMAIN = 'localhost:8000'
 
 # OpenAI API 키
 OPENAI_API_KEY = env('OPENAI_API_KEY')
+
+# Gemini API 키
+GEMINI_API_KEY = env('GEMINI_API_KEY')
 
 # Runway API 키
 RUNWAY_API_KEY = env('RUNWAY_API_KEY')
