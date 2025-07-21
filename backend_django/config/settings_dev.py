@@ -41,37 +41,31 @@ SECRET_KEY = env('DJANGO_SECRET_KEY') # django 시크릿키는 env에서 관리
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    # '34.22.81.8', # GCP VM IP
     'backend-django', # Docker 컨테이너 이름
-    # 'epi-log.site', # 도메인
-    # 'www.epi-log.site', # www 서브도메인
-    # '13.209.163.154',         # EC2 퍼블릭 IP
-    # 'epi-log.site',
-    # 'www.epi-log.site',
-    # '.epi-log.site',          # 서브도메인 전체 허용 (예: grafana.epi-log.site)
-
 ]
 
-# Swagger 페이지는 인증 필터에 걸리지 않음
+# Swagger 페이지는 인증 필터에 걸리지 않음 (JWT 환경에서는 대부분 불필요)
 SWAGGER_EXEMPT_URLS = [
     '/swagger/',
     '/redoc/',
     '/swagger.json',
     '/swagger.yaml',
-    '/metrics',       # Prometheus
-    '/static/',       # 정적 파일
-    '/users/login/',  # 로그인 페이지 자체
-    # Swagger에서 테스트시 인증 필터에 걸리지 않으려면..
-    '/books/',        # books 관련 url은 통과
-    '/characters/',   # characters 관련 url은 통과 (오타 수정)
-    '/narration/',    # narration 관련 url은 통과
-    '/videos/',       # videos 관련 url은 통과
-    '/videos2/',      # videos2 관련 url은 통과
-    '/voe3Video/',    # voe3Video 관련 url은 통과
+    '/metrics',          # Prometheus
+    '/static/',          # 정적 파일
+    '/users/login/',     # JWT 로그인 API
+    '/users/signup/',    # JWT 회원가입 API
+    '/users/token/refresh/', # JWT 토큰 갱신 API
+    # 다른 API들은 JWT 인증 필요
+    '/books/',           # books 관련 url은 통과
+    '/characters/',      # characters 관련 url은 통과 (오타 수정)
+    '/narration/',       # narration 관련 url은 통과
+    '/videos/',          # videos 관련 url은 통과
+    '/videos2/',         # videos2 관련 url은 통과
+    '/voe3Video/',       # voe3Video 관련 url은 통과
 ]
 
-# 로그인 URL 설정
-LOGIN_URL = '/users/login/'
+# 로그인 URL 설정 (JWT 환경에서는 불필요)
+# LOGIN_URL = '/users/login/'
 
 
 
@@ -103,12 +97,14 @@ INSTALLED_APPS = [
     'voe3Video',
 
     'users', # Users 애플리케이션 추가
+    'narration', # Narration 애플리케이션 추가
 
     # 's3test', # S3 테스트용 앱
 
 
     'django_prometheus', # Django Prometheus 추가
     'rest_framework', # Django REST framework 추가
+    'rest_framework_simplejwt', # JWT 인증 추가
     'storages', # Django Storages 추가
     'drf_yasg', # Django REST framework Swagger 추가
     'corsheaders', # CORS 허용 허락
@@ -129,7 +125,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'config.middleware.LoginRequiredMiddleware', # 인증 필터 미들웨어
+    # 'config.middleware.LoginRequiredMiddleware', # JWT 환경에서는 비활성화
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_prometheus.middleware.PrometheusAfterMiddleware'
@@ -263,3 +259,80 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 이 부분을 꼭 추가해야 함
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Django REST Framework 설정
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+# Simple JWT 설정 (개발용 - 환경변수로 관리)
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    # 토큰 수명 (환경변수로 관리)
+    'ACCESS_TOKEN_LIFETIME': timedelta(
+        minutes=env.int('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=60)  # 개발: 60분 (개발 편의성)
+    ),
+    'REFRESH_TOKEN_LIFETIME': timedelta(
+        days=env.int('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=7)  # 개발: 7일 (개발 편의성)
+    ),
+    
+    # 토큰 정책 (환경변수로 관리)
+    'ROTATE_REFRESH_TOKENS': env.bool('JWT_ROTATE_REFRESH_TOKENS', default=True),
+    'BLACKLIST_AFTER_ROTATION': env.bool('JWT_BLACKLIST_AFTER_ROTATION', default=True),
+    'UPDATE_LAST_LOGIN': env.bool('JWT_UPDATE_LAST_LOGIN', default=True),
+    
+    # 보안 설정 (환경변수로 관리)
+    'ALGORITHM': env('JWT_ALGORITHM', default='HS256'),
+    'SIGNING_KEY': env('JWT_SECRET_KEY', default=SECRET_KEY),  # JWT 전용 키 또는 Django 키 fallback
+    'VERIFYING_KEY': None,
+    'AUDIENCE': env('JWT_AUDIENCE', default=None),  # 토큰 수신자
+    'ISSUER': env('JWT_ISSUER', default=None),      # 토큰 발급자
+    
+    # 헤더 설정
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    
+    # 토큰 클래스 설정
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+    
+    'JTI_CLAIM': 'jti',
+}
+
+# Swagger 설정 (JWT 인증 자동 인식)
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': 'JWT Bearer 토큰을 입력하세요. 예: Bearer eyJ0eXAiOiJKV1Q...'
+        }
+    },
+    'USE_SESSION_AUTH': False,  # 세션 인증 비활성화
+    'JSON_EDITOR': True,
+    'SUPPORTED_SUBMIT_METHODS': [
+        'get',
+        'post',
+        'put',
+        'delete',
+        'patch'
+    ],
+    'OPERATIONS_SORTER': 'alpha',
+    'TAGS_SORTER': 'alpha',
+    'DOC_EXPANSION': 'none',
+    'DEEP_LINKING': True,
+    'SHOW_EXTENSIONS': True,
+    'DEFAULT_MODEL_RENDERING': 'example'
+}
+

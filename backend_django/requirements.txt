@@ -3,6 +3,7 @@ mysqlclient
 django-environ
 python-dotenv
 djangorestframework==3.15.1
+djangorestframework-simplejwt>=5.3.0
 django-redis>=5.0
 django-prometheus==2.3.1
 openai>=1.0.0

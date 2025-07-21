@@ -1,17 +1,22 @@
+# narrations/views.py
+
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated  # JWT 인증 추가
 from characters.models import Character
 from narration.service.narration_service import generate_narration_for_character
 
 ''' 음성 생성 API 뷰 (테스트용 - narration_service 사용) '''
 class GenerateVoiceAPIView(APIView):
     """
-    테스트용 나레이션 생성 API
+    테스트용 나레이션 생성 API (JWT 인증 필요)
     내부적으로 narration_service.generate_narration_for_character() 함수를 사용
 
     영상 생성시 generate_narration_for_character() 함수를 직접 호출해서 사용
     """
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
     
     def post(self, request):
         """
@@ -35,6 +40,8 @@ class GenerateVoiceAPIView(APIView):
         }
         """
         try:
+            print(f"🎤 인증된 사용자 {request.user.username}이 음성 생성 요청")
+            
             # 요청 데이터 추출
             character_id = request.data.get("characterId")
             lines = request.data.get("lines", [])
@@ -73,3 +80,4 @@ class GenerateVoiceAPIView(APIView):
             error_msg = f"나레이션 생성 실패: {str(e)}"
             print(f"❌ [테스트 API] {error_msg}")
             return Response({"error": error_msg}, status=500)
+

@@ -10,6 +10,12 @@ class Book(models.Model):
     updated_at = models.DateTimeField(auto_now=True) # 수정일자 - 자동으로 관리
     is_deleted = models.BooleanField(default=False) # 삭제 여부 - 기본값은 False(0)
 
+    class Meta:
+        db_table = 'books'
+        verbose_name = '책'
+        verbose_name_plural = '책들'
+        ordering = ['-created_at']  # 최신순 정렬
 
     def __str__(self):
         return self.title
+

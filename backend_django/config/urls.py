@@ -47,12 +47,33 @@ if settings.DEBUG:
     from rest_framework import permissions
     from django.conf.urls.static import static
 
-    # Swagger 설정
+    # Swagger 설정 (JWT 인증 포함)
     schema_view = get_schema_view(
         openapi.Info(
             title="EpiLog API",
             default_version='v1',
-            description="API documentation for your project",
+            description="""
+EpiLog API 문서
+
+## 인증 방법
+JWT Bearer Token 인증을 사용합니다.
+
+### 1단계: 토큰 발급
+- `/users/login/` 또는 `/users/signup/` API로 JWT 토큰을 발급받으세요.
+
+### 2단계: 인증 설정
+- 🔒 **Authorize** 버튼을 클릭하세요.
+- **Bearer** 섹션에 발급받은 access_token을 입력하세요.
+- **Bearer** 단어는 자동으로 추가됩니다!
+
+### 3단계: API 호출
+- 이제 인증이 필요한 모든 API를 호출할 수 있습니다.
+
+## 토큰 갱신
+- Access Token이 만료되면 `/users/token/refresh/` API를 사용하여 갱신하세요.
+            """,
+            contact=openapi.Contact(email="epilog@example.com"),
+            license=openapi.License(name="MIT License"),
         ),
         public=True,
         permission_classes=[permissions.AllowAny],
@@ -62,6 +83,7 @@ if settings.DEBUG:
     urlpatterns += [
         re_path(r'^swagger/$', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
         re_path(r'^redoc/$', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+        re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     ]
     
     # 개발환경에서 정적 파일 서빙

@@ -1,3 +1,6 @@
+# settings_prod.py
+
+
 """
 Django settings for backend_django project.
 
@@ -77,6 +80,7 @@ INSTALLED_APPS = [
     'voe3Video',
 
     'users', # Users 애플리케이션 추가
+    'narration', # Narration 애플리케이션 추가
 
     # 's3test', # S3 테스트용 앱
 
@@ -84,6 +88,9 @@ INSTALLED_APPS = [
     'django_prometheus', # Django Prometheus 추가
     'rest_framework', # Django REST framework 추가
     'storages', # Django Storages 추가
+    'rest_framework_simplejwt', # JWT 인증 추가
+    'drf_yasg', # Django REST framework Swagger 추가
+    'corsheaders', # CORS 허용 허락
 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -227,3 +234,52 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 이 부분을 꼭 추가해야 함
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Django REST Framework 설정 (배포용)
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+# Simple JWT 설정 (배포용 - 환경변수로 관리)
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    # 토큰 수명 (환경변수로 관리)
+    'ACCESS_TOKEN_LIFETIME': timedelta(
+        minutes=env.int('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=60)  # 프로덕션: 60분 (보안 강화)
+    ),
+    'REFRESH_TOKEN_LIFETIME': timedelta(
+        days=env.int('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=1)  # 프로덕션: 1일 (보안 강화)
+    ),
+    
+    # 토큰 정책 (환경변수로 관리)
+    'ROTATE_REFRESH_TOKENS': env.bool('JWT_ROTATE_REFRESH_TOKENS', default=True),
+    'BLACKLIST_AFTER_ROTATION': env.bool('JWT_BLACKLIST_AFTER_ROTATION', default=True),
+    'UPDATE_LAST_LOGIN': env.bool('JWT_UPDATE_LAST_LOGIN', default=True),
+    
+    # 보안 설정 (환경변수로 관리)
+    'ALGORITHM': env('JWT_ALGORITHM', default='HS256'),
+    'SIGNING_KEY': env('JWT_SECRET_KEY', default=SECRET_KEY),  # JWT 전용 키 또는 Django 키 fallback
+    'VERIFYING_KEY': None,
+    'AUDIENCE': env('JWT_AUDIENCE', default=None),  # 토큰 수신자
+    'ISSUER': env('JWT_ISSUER', default=None),      # 토큰 발급자
+    
+    # 헤더 설정
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    
+    # 토큰 클래스 설정
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+    
+    'JTI_CLAIM': 'jti',
+}

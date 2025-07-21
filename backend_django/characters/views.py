@@ -1,7 +1,10 @@
+# characters/views.py
+
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated  # JWT 인증 추가
 from django.core.cache import caches
 from .gemini_client import (
     generate_scenes_with_gemini,
@@ -28,25 +31,31 @@ class CharacterConditionalCreateOrListView(APIView):
     POST /characters/books/{bookId}
     캐릭터가 존재하면 목록 조회, 없으면 새로 생성하는 함수
     """
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
+    
     @swagger_auto_schema(
-        operation_description="""책의 캐릭터들을 조회하거나 생성합니다.
+        operation_description="""책의 캐릭터들을 조회하거나 생성합니다. (JWT 인증 필요)
         
         - 캐릭터가 이미 존재하면: 기존 캐릭터 목록 반환 (200)
         - 캐릭터가 없으면: Gemini API로 새로 생성 (201)
         
         가능한 오류:
+        - 401: 인증 필요
         - 404: 책을 찾을 수 없음
         - 500: Gemini API 호출 실패, DB 저장 실패
         """,
         responses={
             200: CharacterSerializer(many=True),
             201: CharacterSerializer(many=True),
+            401: openapi.Response(description="인증 필요"),
             404: CharacterErrorResponseSerializer,
             500: CharacterDetailedErrorResponseSerializer
         },
         tags=['캐릭터 관리']
     )
     def post(self, request, book_id):
+        print(f"🎭 인증된 사용자 {request.user.username}이 책 ID {book_id}의 캐릭터 조회/생성 요청")
+        
         try:
             book = Book.objects.get(id=book_id)
         except Book.DoesNotExist:
@@ -54,6 +63,7 @@ class CharacterConditionalCreateOrListView(APIView):
 
         existing_characters = Character.objects.filter(book=book, is_deleted=False)
         if existing_characters.exists():
+            print(f"✅ 기존 캐릭터 {existing_characters.count()}개 발견, 목록 반환")
             data = []
             for character in existing_characters:
                 # 기존 캐릭터의 장면 정보도 함께 조회
@@ -80,6 +90,7 @@ class CharacterConditionalCreateOrListView(APIView):
             return Response(data, status=200)
 
         # Gemini API 호출로 캐릭터 생성 (새로운 방식)
+        print(f"🤖 캐릭터가 없어서 Gemini API로 새로 생성 시작")
         try:
             character_data_list = generate_characters_with_gemini(book_id)
         except Exception as e:
@@ -133,13 +144,16 @@ class CharacterConditionalCreateOrListView(APIView):
                 print(f"⚠️ 캐릭터 또는 장면 저장 실패: {e}")
                 continue
 
+        print(f"✅ 새로운 캐릭터 {len(created_characters)}개 생성 완료")
         return Response(created_characters, status=201)
 
 
 ''' 대본 생성 기능 '''
 class ScriptGenerateView(APIView):
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
+    
     @swagger_auto_schema(
-        operation_description="""캐릭터의 대본을 생성합니다.
+        operation_description="""캐릭터의 대본을 생성합니다. (JWT 인증 필요)
         
         처리 과정:
         1. 캐릭터 정보 조회
@@ -153,17 +167,21 @@ class ScriptGenerateView(APIView):
         - 각 장면은 1-2명의 캐릭터와 대화 포함
         
         가능한 오류:
+        - 401: 인증 필요
         - 404: 캐릭터를 찾을 수 없음
         - 500: Gemini API 호출 실패, Redis 캐싱 실패
         """,
         responses={
             201: ScriptGenerateResponseSerializer,
+            401: openapi.Response(description="인증 필요"),
             404: CharacterErrorResponseSerializer,
             500: CharacterDetailedErrorResponseSerializer
         },
         tags=['대본 생성']
     )
     def post(self, request, character_id):
+        print(f"📝 인증된 사용자 {request.user.username}이 캐릭터 ID {character_id}의 대본 생성 요청")
+        
         try:
             character = Character.objects.get(id=character_id, is_deleted=False)
         except Character.DoesNotExist:
@@ -179,6 +197,7 @@ class ScriptGenerateView(APIView):
         ).exclude(id=character.id)
 
         # Gemini 호출
+        print(f"🤖 Gemini API로 대본 생성 시작 - 주인공: {character.characterName}")
         try:
             raw_text = generate_scenes_with_gemini(
                 main_character=character,
@@ -225,6 +244,8 @@ class ScriptGenerateView(APIView):
                 "scenes": generated_scenes
             }, timeout=1000)
 
+            print(f"✅ 대본 생성 및 캐싱 완료 - Script ID: {script_id}")
+
             return Response({
                 "script_id": script_id,
                 "characterId": character_id,
@@ -237,3 +258,4 @@ class ScriptGenerateView(APIView):
                 'error_code': 500,
                 'message': f'응답 파싱 또는 캐싱 실패: {str(e)}'
             }, status=500)
+
