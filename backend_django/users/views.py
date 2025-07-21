@@ -1,5 +1,3 @@
-# users/views.py
-
 # 기존 Django 템플릿 뷰 관련 import들 (주석처리)
 # from django.contrib.auth import authenticate, login, logout
 # from django.shortcuts import render,redirect
@@ -91,20 +89,23 @@ from users.serializers import LoginSerializer, SignupSerializer, UserSerializer
 
 
 # ========== JWT API 뷰들 ==========
+"""JWT 로그인 API"""
 class LoginAPIView(APIView):
-    """JWT 로그인 API"""
-    permission_classes = [AllowAny]
+    # JWT 관련 인증 로직
+    permission_classes = [AllowAny] # 누구나 접근 가능(로그인이기 때문에)
     parser_classes = [JSONParser, MultiPartParser, FormParser]  # 여러 파서 지원
     
     def post(self, request):
+        '''login_id와 password의 유효성을 검사하고 직렬화'''
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
             
-            # JWT 토큰 생성
+            # JWT 토큰 생성, 커스텀 토큰 사용
             refresh = CustomRefreshToken.for_user(user)
             access_token = refresh.access_token
             
+            # 응답결과로 token과 user 정보를 반환
             return Response({
                 'message': '로그인 성공',
                 'access_token': str(access_token),
@@ -118,9 +119,9 @@ class LoginAPIView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
+"""JWT 회원가입 API"""
 class SignupAPIView(APIView):
-    """JWT 회원가입 API"""
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny] # 누구나 접근 가능(회원가입 기능이므로)
     parser_classes = [JSONParser, MultiPartParser, FormParser]  # 여러 파서 지원
     
     def post(self, request):
@@ -147,7 +148,7 @@ class SignupAPIView(APIView):
 
 class UserInfoAPIView(APIView):
     """사용자 정보 조회 API (JWT 인증 필요)"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated] # JWT 인증이 필요한 API
     
     def get(self, request):
         serializer = UserSerializer(request.user)

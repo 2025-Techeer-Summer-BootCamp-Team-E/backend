@@ -1,22 +1,21 @@
 from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import datetime
 
-
+"""커스텀 RefreshToken - payload에 추가 사용자 정보 포함"""
 class CustomRefreshToken(RefreshToken):
-    """커스텀 RefreshToken - payload에 추가 사용자 정보 포함"""
     
     @classmethod
     def for_user(cls, user):
-        """사용자를 위한 토큰 생성 시 추가 payload 정보 포함"""
+        """사용자를 위한 토큰 생성 시 추가 payload에 사용자 정보 포함"""
         token = super().for_user(user)
         
-        # 기본 사용자 정보
-        token['login_id'] = user.username
-        token['nickname'] = user.nickname
+        # 기본적으로 토큰에 넣는 사용자 정보
+        token['login_id'] = user.username # 모든 API에서 필요함!
         token['is_deleted'] = user.is_deleted
+        # token['nickname'] = user.nickname
         
         # 계정 생성일 (ISO 형식)
-        token['created_at'] = user.date_joined.isoformat()
+        # token['created_at'] = user.date_joined.isoformat()
         
         # 마지막 로그인 시간 (있는 경우)
         if user.last_login:

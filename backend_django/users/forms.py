@@ -1,4 +1,6 @@
 # users/forms.py
+# form.py는 Django Form을 이용한 템플릿. 
+# 백엔드는 JWT인증 기능만 구현하고 템플릿(클라이언트 화면)은 프론트엔드에서 구성하기에 주석처리!
 
 # ========== 기존 Django Form들 (주석처리) ==========
 # JWT API 환경에서는 DRF serializer를 사용하므로 Django Form은 불필요

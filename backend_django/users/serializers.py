@@ -1,37 +1,42 @@
-# users/serializers.py
-
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from users.models import User
 
-
+'''로그인 요청을 처리하는 직렬화 클래스'''
 class LoginSerializer(serializers.Serializer):
     """로그인용 Serializer"""
+    # 사용자에게 login_id와 비밀번호를 입력받음
     login_id = serializers.CharField()
     password = serializers.CharField(write_only=True)
     
+    '''사용자가 입력한 login_id, password의 유효성 검사'''
     def validate(self, attrs):
         login_id = attrs.get('login_id')
         password = attrs.get('password')
         
-        if login_id and password:
-            # login_id는 username 필드에 매핑됨
-            user = authenticate(username=login_id, password=password)
+        if login_id and password: # login_id와 password를 입력받았을때
+            # authenticate(): login_id와 password로 로그인하고, 유저를 인증처리하는 함수
+            user = authenticate(username=login_id, password=password) # login_id는 username 필드에 매핑됨
+            # 입력한 login_id, password가 잘못되었을때
             if not user:
                 raise serializers.ValidationError('잘못된 로그인 ID 또는 비밀번호입니다.')
+            # 이전에 비활성화된 유저일때
             if not user.is_active:
                 raise serializers.ValidationError('비활성화된 계정입니다.')
+            # 이전에 소프트 딜리트된 유저일때
             if user.is_deleted:
                 raise serializers.ValidationError('삭제된 계정입니다.')
             attrs['user'] = user
             return attrs
         else:
+            # login_id나 password 둘 중 하나를 입력하지 않았을 경우
             raise serializers.ValidationError('로그인 ID와 비밀번호를 모두 입력해주세요.')
 
 
-class SignupSerializer(serializers.ModelSerializer):
     """회원가입용 Serializer"""
+class SignupSerializer(serializers.ModelSerializer):
+    # 사용자에게 입력받을 속성
     login_id = serializers.CharField(source='username')
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
@@ -40,12 +45,13 @@ class SignupSerializer(serializers.ModelSerializer):
         model = User
         fields = ['login_id', 'password', 'password_confirm', 'nickname']
         
+    """로그인 ID 중복 검증"""
     def validate_login_id(self, value):
-        """로그인 ID 중복 검증"""
         if User.objects.filter(username=value, is_deleted=False).exists():
             raise serializers.ValidationError('이미 사용 중인 로그인 ID입니다.')
         return value
         
+    '''입력한 패스워드가 일치하는지 확인하는 함수'''
     def validate(self, attrs):
         password = attrs.get('password')
         password_confirm = attrs.get('password_confirm')

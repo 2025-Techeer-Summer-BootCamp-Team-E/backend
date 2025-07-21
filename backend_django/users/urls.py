@@ -1,6 +1,3 @@
-# users/urls.py
-
-
 from django.urls import path
 # 기존 템플릿 기반 뷰들 (주석처리)
 # from users.views import login_view, logout_view, signup, temp_view
@@ -17,8 +14,8 @@ urlpatterns = [
     # path("temp/", temp_view),  # 임시 페이지 뷰 추가
     
     # JWT API 엔드포인트들
-    path("login/", LoginAPIView.as_view()),
-    path("signup/", SignupAPIView.as_view()),  
-    path("me/", UserInfoAPIView.as_view()),
-    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("login/", LoginAPIView.as_view()), # /users/login/
+    path("signup/", SignupAPIView.as_view()),  # /users/signup/
+    path("me/", UserInfoAPIView.as_view()), # /users/me
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"), # ?
 ]
