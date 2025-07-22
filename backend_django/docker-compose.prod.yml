@@ -121,7 +121,7 @@ services:
     image: traefik:v2.9
     container_name: backend-traefik
     command:
-      - "--api.insecure=true"
+      - "--api.insecure=false"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
       - "--api.dashboard=true"
