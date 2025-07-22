@@ -1,6 +1,4 @@
 # settings_prod.py
-
-
 """
 Django settings for backend_django project.
 
@@ -93,10 +91,10 @@ CSRF_TRUSTED_ORIGINS = [
 # JWT 기반 API에서는 별도 CSRF 설정 불필요
 
 # 배포용/(근데 실제로 사용은 안했음.)
-SECURE_SSL_REDIRECT = False
+SECURE_SSL_REDIRECT = True
 SECURE_REDIRECT_EXEMPT = [r'^metrics/?$']  # /metrics 경로는 HTTPS 리다이렉트 제외
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 
 # OpenAI API 키
