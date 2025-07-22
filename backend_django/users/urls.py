@@ -3,7 +3,7 @@ from django.urls import path
 # from users.views import login_view, logout_view, signup, temp_view
 
 # JWT API 뷰 import 추가
-from users.views import LoginAPIView, SignupAPIView, UserInfoAPIView, CustomTokenRefreshView
+from users.views import LoginAPIView, SignupAPIView, UserInfoAPIView, CustomTokenRefreshView, LogoutAPIView, LogoutAllAPIView
 
 urlpatterns = [
     # 기존 템플릿 기반 뷰들 (세션 인증) - 주석처리
@@ -15,6 +15,8 @@ urlpatterns = [
     # JWT API 엔드포인트들
     path("login/", LoginAPIView.as_view()), # /users/login/
     path("signup/", SignupAPIView.as_view()),  # /users/signup/
+    path("logout/", LogoutAPIView.as_view()),  # /users/logout/
+    path("logout/all/", LogoutAllAPIView.as_view()),  # /users/logout/all/
     path("me/", UserInfoAPIView.as_view()), # /users/me
     path("token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"), # JWT 토큰 갱신 (Swagger 문서화 포함)
 ]

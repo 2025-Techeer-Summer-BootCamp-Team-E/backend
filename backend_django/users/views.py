@@ -14,6 +14,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 # from rest_framework_simplejwt.tokens import RefreshToken  # 기본 토큰 주석처리
 from users.tokens import CustomRefreshToken  # 커스텀 토큰 사용
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+from rest_framework_simplejwt.exceptions import TokenError
 from django.views.decorators.csrf import csrf_exempt  # CSRF 면제 데코레이터 추가
 from django.utils.decorators import method_decorator  # 클래스 기반 뷰에 데코레이터 적용
 from users.serializers import (
@@ -327,5 +329,188 @@ class CustomTokenRefreshView(TokenRefreshView):
         }
     )
     def post(self, request, *args, **kwargs):
-        """JWT 토큰 갱신 (부모 클래스 기능 그대로 사용)"""
         return super().post(request, *args, **kwargs)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class LogoutAPIView(APIView):
+    """JWT 로그아웃 API"""
+    permission_classes = [IsAuthenticated]  # 인증된 사용자만 접근 가능
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+    
+    @swagger_auto_schema(
+        operation_description="""JWT 토큰 기반 로그아웃 API
+        
+        현재 사용 중인 JWT 토큰을 무효화하여 로그아웃 처리합니다.
+        
+        **로그아웃 과정:**
+        1. Authorization 헤더의 Access Token으로 사용자 인증
+        2. 요청 Body의 refresh_token을 블랙리스트에 추가
+        3. 해당 토큰으로는 더 이상 API 접근 불가
+        
+        **토큰 무효화 방식:**
+        - **Refresh Token**: 블랙리스트에 추가하여 완전히 무효화
+        - **Access Token**: 만료 시간까지는 유효하지만 새로운 토큰 발급 불가
+        
+        **보안 강화:**
+        - 토큰 탈취 시 즉시 무효화 가능
+        - 다중 기기 로그인 시 특정 기기만 로그아웃 가능
+        
+        **클라이언트 처리:**
+        로그아웃 성공 후 클라이언트에서는:
+        1. 로컬 저장소의 토큰 삭제 (localStorage, sessionStorage 등)
+        2. Authorization 헤더 제거
+        3. 로그인 페이지로 리다이렉트
+        
+        **주의사항:**
+        - refresh_token이 이미 블랙리스트에 있는 경우에도 성공 응답
+        - 잘못된 refresh_token인 경우 400 Bad Request 응답
+        """,
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'refresh_token': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='로그아웃할 refresh token'
+                )
+            },
+            required=['refresh_token']
+        ),
+        responses={
+            200: openapi.Response(
+                description="로그아웃 성공",
+                examples={
+                    "application/json": {
+                        "message": "로그아웃 되었습니다.",
+                        "detail": "토큰이 성공적으로 무효화되었습니다."
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="로그아웃 실패",
+                examples={
+                    "application/json": {
+                        "message": "로그아웃 실패",
+                        "error": "유효하지 않은 refresh token입니다."
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="인증 실패",
+                examples={
+                    "application/json": {
+                        "detail": "자격 인증데이터(authentication credentials)가 제공되지 않았습니다."
+                    }
+                }
+            )
+        },
+        tags=['인증 (Authentication)'],
+        examples={
+            'application/json': {
+                'refresh_token': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...'
+            }
+        }
+    )
+    def post(self, request):
+        try:
+            refresh_token = request.data.get('refresh_token')
+            
+            if not refresh_token:
+                return Response({
+                    'message': '로그아웃 실패',
+                    'error': 'refresh_token이 필요합니다.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # RefreshToken 객체 생성 및 블랙리스트 추가
+            token = CustomRefreshToken(refresh_token)
+            token.blacklist()
+            
+            return Response({
+                'message': '로그아웃 되었습니다.',
+                'detail': '토큰이 성공적으로 무효화되었습니다.'
+            }, status=status.HTTP_200_OK)
+            
+        except TokenError as e:
+            return Response({
+                'message': '로그아웃 실패', 
+                'error': '유효하지 않은 refresh token입니다.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'message': '로그아웃 실패',
+                'error': '서버 오류가 발생했습니다.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class LogoutAllAPIView(APIView):
+    """모든 기기에서 로그아웃 API"""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+    
+    @swagger_auto_schema(
+        operation_description="""모든 기기에서 JWT 로그아웃 API
+        
+        현재 사용자의 모든 Outstanding Token을 블랙리스트에 추가하여 
+        모든 기기에서 로그아웃 처리합니다.
+        
+        **사용 시나리오:**
+        - 보안상 이유로 모든 기기에서 즉시 로그아웃 필요한 경우
+        - 비밀번호 변경 후 보안 강화
+        - 계정 해킹 의심 시 긴급 조치
+        
+        **처리 과정:**
+        1. 현재 사용자의 모든 Outstanding Token 조회
+        2. 아직 블랙리스트에 없는 토큰들을 모두 블랙리스트에 추가
+        3. 모든 기기에서 즉시 API 접근 불가
+        
+        **영향 범위:**
+        - 웹 브라우저, 모바일 앱 등 모든 플랫폼
+        - 현재 기기 포함 모든 기기에서 재로그인 필요
+        
+        **주의사항:**
+        - 이 API 호출 후 현재 세션도 무효화됨
+        - 재로그인 필요
+        """,
+        responses={
+            200: openapi.Response(
+                description="전체 로그아웃 성공",
+                examples={
+                    "application/json": {
+                        "message": "모든 기기에서 로그아웃 되었습니다.",
+                        "detail": "총 3개의 토큰이 무효화되었습니다."
+                    }
+                }
+            ),
+            401: openapi.Response(
+                description="인증 실패",
+                examples={
+                    "application/json": {
+                        "detail": "자격 인증데이터(authentication credentials)가 제공되지 않았습니다."
+                    }
+                }
+            )
+        },
+        tags=['인증 (Authentication)']
+    )
+    def post(self, request):
+        try:
+            # 현재 사용자의 모든 Outstanding Token 조회
+            outstanding_tokens = OutstandingToken.objects.filter(user=request.user)
+            
+            blacklisted_count = 0
+            for outstanding_token in outstanding_tokens:
+                # 이미 블랙리스트에 있지 않은 토큰만 블랙리스트에 추가
+                if not BlacklistedToken.objects.filter(token=outstanding_token).exists():
+                    BlacklistedToken.objects.create(token=outstanding_token)
+                    blacklisted_count += 1
+            
+            return Response({
+                'message': '모든 기기에서 로그아웃 되었습니다.',
+                'detail': f'총 {blacklisted_count}개의 토큰이 무효화되었습니다.'
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'message': '전체 로그아웃 실패',
+                'error': '서버 오류가 발생했습니다.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
