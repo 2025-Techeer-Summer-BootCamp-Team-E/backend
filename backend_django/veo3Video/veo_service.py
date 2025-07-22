@@ -109,7 +109,7 @@ def generate_video_from_text(prompt: str, title: str, character_id: int = None, 
         # 폴링기법, sychronize 등의 기법이 있는데 구현도 간편하고 전송여부를 확인하기 위함
         while not operation.done:
             print(f"[Veo] Operation {operation.name} is not yet done. Status: {operation.metadata.state if operation.metadata else 'N/A'}")
-            time.sleep(15)
+            time.sleep(10)
             operation = client.operations.get(operation)
         print(f"[Veo] Operation {operation.name} completed. Done: {operation.done}")
 
@@ -132,10 +132,18 @@ def generate_video_from_text(prompt: str, title: str, character_id: int = None, 
             source_bucket = storage_client.bucket(bucket_name)
             source_blob = source_bucket.blob(temp_blob_name)
 
-            # 데이터베이스에서 비디오 개수를 세어 새 파일명 결정
-            video_index = Video.objects.count()
-            # 최종 저장될 폴더 및 파일명 설정
-            final_blob_name = f"generated_videos/video_{video_index}.mp4"
+            # 최종 저장될 폴더 및 파일명 설정 (title을 기반으로 고유한 이름 생성)
+            # 특수문자 및 공백을 언더스코어로 대체하여 파일명으로 적합하게 만듭니다.
+            safe_title = "".join(c if c.isalnum() or c == ' ' else '_' for c in title).replace(' ', '_')
+            final_blob_name = f"generated_videos/{safe_title}.mp4"
+            
+            # 파일명 충돌 방지를 위해 고유한 UUID를 추가
+            counter = 0
+            original_final_blob_name = final_blob_name
+            while source_bucket.blob(final_blob_name).exists():
+                counter += 1
+                final_blob_name = f"generated_videos/{safe_title}_{counter}.mp4"
+
             print(f"[Veo] Final blob name: {final_blob_name}")
             
             # 파일을 새 위치로 복사(이름 변경)

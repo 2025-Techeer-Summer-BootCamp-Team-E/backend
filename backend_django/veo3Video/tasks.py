@@ -27,7 +27,16 @@ def create_video_for_scene(character_id, prompt, title, lines):
     combined_file_path = None
     try:
         # 1. 나레이션 생성
-        narration_results = generate_narration_for_character(character_id=character_id, lines=lines)
+        transformed_lines = []
+        for line_item in lines:
+            if "line_ko" in line_item:
+                transformed_lines.append({"speaker": line_item.get("speaker"), "text": line_item["line_ko"]})
+            elif "line_en" in line_item:
+                transformed_lines.append({"speaker": line_item.get("speaker"), "text": line_item["line_en"]})
+            else:
+                raise ValueError("Line item must contain 'line_ko' or 'line_en' field for narration.")
+
+        narration_results = generate_narration_for_character(character_id=character_id, lines=transformed_lines)
         if not narration_results or not narration_results[0].get("audioUrl"):
             raise Exception("나레이션 생성에 실패했습니다.")
         narration_audio_url = narration_results[0]["audioUrl"]
@@ -65,8 +74,9 @@ def create_video_for_scene(character_id, prompt, title, lines):
             "-c:v", "copy",
             "-c:a", "aac",
             "-strict", "experimental",
+            "-filter_complex", "[0:a][1:a]amix=inputs=2:duration=longest[a0]",
             "-map", "0:v:0",
-            "-map", "1:a:0",
+            "-map", "[a0]",
             "-y", # Overwrite output files without asking
             combined_file_path
         ]
@@ -100,6 +110,7 @@ def create_video_for_scene(character_id, prompt, title, lines):
             narration_audio_url=narration_audio_url # 나레이션 URL 저장
         )
         print(f"Video with narration metadata saved to DB: {title}")
+        print("영상생성이 완료되었습니다!")
 
         return {"status": "success", "gcs_uri": final_gcs_uri, "signed_url": signed_url}
 
@@ -112,8 +123,10 @@ def create_video_for_scene(character_id, prompt, title, lines):
         print(f"Stderr: {e.stderr.decode()}")
         raise
     except Exception as e:
-        print(f"Error in create_video_for_scene: {e}")
-        raise
+        error_message = f"Error in create_video_for_scene for title '{title}': {e}"
+        print(error_message)
+        # 실패 시에도 명확한 상태를 반환하도록 수정
+        return {"status": "failure", "reason": error_message, "title": title}
     finally:
         # 임시 파일 정리
         for f in [video_file_path, audio_file_path, combined_file_path]:
@@ -128,18 +141,21 @@ def combine_videos_task(self, results, output_title, user_id=None, character_id=
     이 태스크는 Celery chord의 콜백으로 사용됩니다.
     """
     video_uris = []
+    failed_scenes = []
     for result in results:
         if result and result.get('status') == 'success':
             video_uris.append(result.get('gcs_uri'))
         else:
-            # 하나의 태스크라도 실패하면 전체 작업을 중단하고 실패 상태로 업데이트
-            self.update_state(state='FAILURE', meta={'reason': 'One of the scene generation tasks failed.'})
-            # 실패한 경우, 예외를 발생시켜서 체인을 중단
-            raise Exception("Failed to generate one or more scene videos.")
+            failed_scenes.append(result.get('title', 'Unknown Scene'))
+
+    if failed_scenes:
+        error_reason = f"Failed to generate scenes: {', '.join(failed_scenes)}"
+        self.update_state(state='FAILURE', meta={'reason': error_reason})
+        raise Exception(error_reason)
 
     if not video_uris:
-        self.update_state(state='FAILURE', meta={'reason': 'No video URIs were returned from the scene generation tasks.'})
-        raise Exception("No video URIs to combine.")
+        self.update_state(state='FAILURE', meta={'reason': 'No successful scenes to combine.'})
+        raise Exception("No successful scenes to combine.")
 
     storage_client = storage.Client()
     bucket_name = GOOGLE_CLOUD_GCS_BUCKET.replace("gs://", "").rstrip('/')
