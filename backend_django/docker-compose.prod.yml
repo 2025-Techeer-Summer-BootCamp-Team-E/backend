@@ -125,6 +125,10 @@ services:
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
       - "--api.dashboard=true"
+      - "--accesslog=true" # 이 라인 추가
+      - "--accesslog.filepath=/var/log/traefik/access.log" # (선택 사항) 파일로 저장
+      - "--accesslog.format=json" # (선택 사항) JSON 형식으로 로그
+      - "--log.level=DEBUG" # 디버그 레벨 로그 (자세한 정보)
       - "--entrypoints.websecure.address=:443" # 중요 - Traefik이 HTTPS 요청을 수신할 포트 443을 열음
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure" # 중요 - HTTP 요청을 HTTPS로 리다이렉트
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https" # 중요 => HTTPS 강제 적용
