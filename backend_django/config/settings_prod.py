@@ -49,6 +49,35 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # 배포 서버
 BACKEND_DOMAIN = 'epi-log.site'
 
+# CORS 설정 (배포용)
+CORS_ALLOWED_ORIGINS = [
+    "https://epi-log.site",
+    "http://epi-log.site",
+    "https://www.epi-log.site",
+    "http://www.epi-log.site",
+]
+
+# 개발/테스트용 (필요시)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.epi-log\.site$",
+    r"^http://.*\.epi-log\.site$",
+]
+
+# CORS 헤더 설정
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False  # 보안을 위해 특정 도메인만 허용
+
+# CSRF 신뢰할 수 있는 출처 설정
+CSRF_TRUSTED_ORIGINS = [
+    "https://epi-log.site",
+    "http://epi-log.site", 
+    "https://www.epi-log.site",
+    "http://www.epi-log.site",
+]
+
+# 참고: Django REST Framework의 APIView는 자동으로 csrf_exempt 적용됨
+# JWT 기반 API에서는 별도 CSRF 설정 불필요
+
 # 배포용/(근데 실제로 사용은 안했음.)
 SECURE_SSL_REDIRECT = False
 SECURE_REDIRECT_EXEMPT = [r'^metrics/?$']  # /metrics 경로는 HTTPS 리다이렉트 제외
@@ -102,6 +131,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django_prometheus.middleware.PrometheusBeforeMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS 미들웨어 추가
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -242,6 +272,14 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
     ],
 }
 
