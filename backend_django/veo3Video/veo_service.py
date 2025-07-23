@@ -55,7 +55,7 @@ def generate_signed_url(gcs_uri: str, expiration_seconds: int = 3600):
         blob = bucket.blob(blob_name)
 
         # 서명된 URL을 생성. 이 URL이 접속해서 영상이 생성되는 URL
-        # version="v옴: v4 서명 방식을 사용합니다. (권장)
+        # version="v4": v4 서명 방식을 사용합니다. (권장)
         # expiration: URL이 만료될 시간 (UTC 기준 datetime 객체).
         # method="GET": GET 요청에 대해서만 유효한 URL을 생성.
         signed_url = blob.generate_signed_url(
@@ -71,14 +71,14 @@ def generate_signed_url(gcs_uri: str, expiration_seconds: int = 3600):
 
 # 텍스트를 기반으로 비디오를 생성하는 함수
 # Google Cloud Vertex AI의 Veo 3 API를 호출하여 비디오를 생성, 생성된 비디오의 메타데이터를 데이터베이스에 저장.
-def generate_video_from_text(prompt: str, title: str, character_id: int = None, user_id: str = None):
+def generate_video_from_text(prompt: str, title: str, character_id: int = None, user_id: int = None):
     """
     텍스트 프롬프트를 사용하여 Veo 3 API로 비디오를 생성.
 
     Args:
         prompt (str): 비디오 생성에 사용될 텍스트 프롬프트.
         title (str): 생성될 비디오의 제목.
-        user_id (str, optional): 비디오를 생성하는 사용자의 ID. JWT 인증 시 사용됩니다. 기본값은 None.
+        user_id (int, optional): 비디오를 생성하는 사용자의 ID (User 모델의 pk). 기본값은 None.
         character_id (int, optional): 비디오와 연결될 캐릭터의 ID. 기본값은 None.
 
     Returns:
@@ -184,12 +184,12 @@ def generate_video_from_text(prompt: str, title: str, character_id: int = None, 
 
 # 비디오 목록을 조회하는 함수
 # 데이터베이스에 저장된 비디오 메타데이터를 조회하고, 각 비디오에 대한 서명된 URL을 생성하여 반환.
-def list_videos(user_id: str = None):
+def list_videos(user_id: int):
     """
     데이터베이스에서 비디오 목록을 조회하고 서명된 URL을 생성합니다.
 
     Args:
-        user_id (str, optional): 특정 사용자의 비디오만 필터링하기 위한 사용자 ID. 기본값은 None.
+        user_id (int, optional): 특정 사용자의 비디오만 필터링하기 위한 사용자 ID (User 모델의 pk). 기본값은 None.
 
     Returns:
         list: 비디오 정보(ID, URI, 서명된 URL, 프롬프트, 제목, 사용자 ID, 생성 시간) 딕셔너리 리스트.
@@ -212,7 +212,8 @@ def list_videos(user_id: str = None):
                 "signed_url": signed_url,   # 실제 영상 조회 가능한 HTTP URL
                 "prompt": video.prompt, # 비디오 생성에 사용된 프롬프트
                 "title": video.title, # 비디오 제목
-                "user_id": video.user_id, # 비디오를 생성한 사용자 ID
+                "user_id": video.user.id if video.user else None, # 비디오를 생성한 사용자 ID
+                # "username": video.user.username if video.user else None, # 비디오를 생성한 사용자명
                 "created_at": video.created_at.isoformat(), # 비디오 생성 시간
             })
         return videos_data

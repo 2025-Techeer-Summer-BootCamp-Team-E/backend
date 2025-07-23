@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 # 이 모델은 Google Cloud Storage(GCS)에 저장된 비디오의 메타데이터를 관리합니다.
 # 각 필드는 비디오와 관련된 중요한 정보를 저장하며, 데이터베이스 스키마를 정의합니다.
@@ -15,10 +16,11 @@ class Video(models.Model):
     # CharField를 사용하여 짧은 문자열을 저장하며, 최대 길이: 255자
     title = models.CharField(max_length=255, verbose_name="Video Title")
     
-    # user_id: 비디오를 생성한 사용자의 ID (JWT 인증과 연동될 예정)
-    # CharField를 사용하여 사용자 ID를 저장하, null=True, blank=True로 설정하여 아직은 필수가 아니어도 괜찮도록 함
-    # JWT 인증 기능이 구현되면 이 필드에 실제 사용자 ID가 저장됩니다.
-    user_id = models.CharField(max_length=255, null=True, blank=True, verbose_name="User ID (from JWT)")
+    # user: 비디오를 생성한 사용자 (User 모델과 외래키 관계)
+    # ForeignKey를 사용하여 User 모델과 연결, null=True, blank=True로 설정하여 필수가 아니어도 괜찮도록 함
+    # on_delete=models.CASCADE: 사용자가 삭제되면 해당 사용자의 비디오도 삭제
+    # related_name='videos': User 모델에서 역참조할 때 사용할 이름 (user.videos.all())
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='videos', null=True, blank=True, verbose_name="생성자")
     
     # created_at: 비디오 레코드가 생성된 시간
     # DateTimeField를 사용하여 날짜와 시간을 저장하며, auto_now_add=True로 설정하여
@@ -47,4 +49,4 @@ class Video(models.Model):
     # __str__ 메서드: 객체를 문자열로 표현할 때 사용됩니다.
     # Django 관리자 페이지 등에서 객체를 식별하는 데 유용합니다.
     def __str__(self):
-        return f"{self.title} ({self.user_id or 'Anonymous'})"
+        return f"{self.title} ({self.user.username if self.user else 'Anonymous'})"
