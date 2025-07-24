@@ -35,8 +35,8 @@ services:
     image: rabbitmq:3.13-management
     container_name: backend-rabbitmq
     ports:
-      - "5672:5672"    # AMQP 프로토콜 포트
-      - "15672:15672"  # 관리자 UI 포트
+      - "5672:5672" # AMQP 프로토콜 포트
+      - "15672:15672" # 관리자 UI 포트
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -124,7 +124,7 @@ services:
   celery-worker:
     build: .
     container_name: backend-celery-worker
-    command: celery -A config worker -l info
+    command: sh -c "uv pip install --system --no-cache-dir -r requirements.txt && celery -A config worker -l info"
     volumes:
       - .:/backend
       - ./gcp-key.json:/app/gcp-key.json
