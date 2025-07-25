@@ -60,8 +60,7 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.epi-log\.site$",
     r"^http://.*\.epi-log\.site$",
-    r"^https://.*\.epi-log\.vercel\.app$",
-    r"^http://.*\.epi-log\.vercel\.app$",
+    r"^https?://epi-log-.*\.vercel\.app$",
 ]
 
 # 추가 허용 오리진 (필요시)
