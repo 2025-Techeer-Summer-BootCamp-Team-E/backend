@@ -18,7 +18,7 @@ app.conf.update(
 
 # 등록된 모든 Django 앱 설정에서 tasks.py 파일을 로드합니다.
 # 명시적으로 태스크가 있는 앱들을 지정
-app.autodiscover_tasks(['books', 'veo3Video'])
+app.autodiscover_tasks(['books', 'characters', 'veo3Video'])
 
 @app.task(bind=True)
 def debug_task(self):

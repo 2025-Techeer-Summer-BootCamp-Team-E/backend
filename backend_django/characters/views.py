@@ -22,7 +22,11 @@ from .serializers import (
     CharacterSerializer,
     CharacterErrorResponseSerializer,
     CharacterDetailedErrorResponseSerializer,
-    ScriptGenerateResponseSerializer
+    ScriptGenerateResponseSerializer,
+    ScriptAsyncResponseSerializer,
+    ScriptTaskStatusResponseSerializer,
+    CharacterAsyncResponseSerializer,
+    CharacterTaskStatusResponseSerializer
 )
 
 ''' 캐릭터 생성 혹은 조회 기능 '''
@@ -235,5 +239,331 @@ class ScriptGenerateView(APIView):
                 'status': 'error',
                 'error_code': 500,
                 'message': f'응답 파싱 또는 캐싱 실패: {str(e)}'
+            }, status=500)
+
+
+''' 대본 생성 기능 (비동기 버전) '''
+class ScriptGenerateAsyncView(APIView):
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
+    
+    @swagger_auto_schema(
+        operation_description="""캐릭터의 대본을 비동기적으로 생성합니다. (JWT 인증 필요)
+        
+        처리 과정:
+        1. 즉시 ScriptTask 레코드 생성 및 응답 반환
+        2. 백그라운드에서 대본 처리:
+           - 캐릭터 정보 조회
+           - 조연 캐릭터 정보 수집
+           - Gemini API로 대본 생성
+           - Redis에 대본 캐싱
+           - DB에 최종 정보 업데이트
+        
+        가능한 오류:
+        - 401: 인증 필요
+        - 404: 캐릭터를 찾을 수 없음
+        - 500: 초기 처리 실패
+        """,
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'scene_count': openapi.Schema(
+                    type=openapi.TYPE_INTEGER,
+                    description="생성할 장면 수 (기본값: 3)",
+                    default=3
+                )
+            }
+        ),
+        responses={
+            202: ScriptAsyncResponseSerializer,
+            401: openapi.Response(description="인증 필요"),
+            404: CharacterErrorResponseSerializer,
+            500: CharacterDetailedErrorResponseSerializer
+        },
+        tags=['대본 생성']
+    )
+    def post(self, request, character_id):
+        print("📝 비동기 대본 생성 요청 시작")
+        print("👤 요청 사용자:", request.user.username if request.user.is_authenticated else "익명")
+        
+        try:
+            character = Character.objects.get(id=character_id, is_deleted=False)
+        except Character.DoesNotExist:
+            return Response({'error': 'Character not found'}, status=404)
+
+        # 장면 수 파라미터 (기본값: 3)
+        scene_count = int(request.data.get('scene_count', 3))
+        
+        print(f"✅ 검증 완료 - 캐릭터: {character.characterName}, 장면 수: {scene_count}")
+
+        try:
+            # 1. Celery 태스크 시작
+            from .tasks import generate_script_task
+            task = generate_script_task.delay(
+                character_id=character_id,
+                scene_count=scene_count
+            )
+            
+            print(f"🚀 비동기 처리 시작 - Task ID: {task.id}")
+
+            # 2. 즉시 응답 반환
+            return Response({
+                "task_id": task.id,
+                "character_id": character_id,
+                "character_name": character.characterName,
+                "scene_count": scene_count,
+                "message": "대본 생성이 시작되었습니다. 처리 상태는 GET /characters/tasks/{task_id}/status 로 확인 가능합니다."
+            }, status=202)  # 202 Accepted
+
+        except Exception as e:
+            print(f"[ERROR] 초기 처리 중 오류 발생: {str(e)}")
+            print(f"[ERROR] 오류 타입: {type(e).__name__}")
+            import traceback
+            print(f"[ERROR] 상세 스택 트레이스:\n{traceback.format_exc()}")
+
+            return Response({
+                'status': 'error',
+                'error_code': 500,
+                'message': f'초기 처리 중 오류가 발생했습니다: {str(e)}'
+            }, status=500)
+
+
+''' 대본 생성 상태 확인 기능 (Redis 기반) '''
+class ScriptTaskStatusView(APIView):
+    """
+    대본 생성 작업 상태를 확인하는 API (Redis 기반)
+    """
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="""대본 생성 작업 상태를 확인합니다. (JWT 인증 필요)
+        
+        처리 상태:
+        - PROCESSING: 처리 진행 중  
+        - COMPLETED: 처리 완료 (script_id로 Redis에서 대본 조회 가능)
+        - FAILED: 처리 실패
+        """,
+        responses={
+            200: ScriptTaskStatusResponseSerializer,
+            404: CharacterErrorResponseSerializer,
+            401: openapi.Response(description="인증 필요")
+        },
+        tags=['대본 생성']
+    )
+    def get(self, request, task_id):
+        script_cache = caches['script_cache']
+        task_key = f"task:{task_id}"
+        
+        try:
+            # Redis에서 태스크 상태 조회
+            task_data = script_cache.get(task_key)
+            
+            if not task_data:
+                return Response({
+                    "error": "태스크를 찾을 수 없습니다. 태스크가 만료되었거나 존재하지 않습니다."
+                }, status=404)
+            
+            # 응답 데이터 구성
+            response_data = {
+                "task_id": task_id,
+                "character_id": task_data.get("character_id"),
+                "character_name": task_data.get("character_name"),
+                "status": task_data.get("status"),
+                "script_id": task_data.get("script_id"),
+                "scene_count": task_data.get("scene_count"),
+                "error_message": task_data.get("error_message"),
+                "message": task_data.get("message"),
+                "started_at": task_data.get("started_at"),
+                "completed_at": task_data.get("completed_at"),
+                "failed_at": task_data.get("failed_at")
+            }
+            
+            # 🎬 완료된 경우 대본 내용도 함께 반환
+            if task_data.get("status") == "COMPLETED" and task_data.get("script_id"):
+                script_id = task_data.get("script_id")
+                script_key = f"script:{script_id}"
+                script_data = script_cache.get(script_key)
+                
+                if script_data:
+                    response_data["scenes"] = script_data.get("scenes", [])
+                    print(f"📋 대본 내용도 함께 반환 - Script ID: {script_id}, 장면 수: {len(script_data.get('scenes', []))}")
+                else:
+                    print(f"⚠️ 대본 데이터를 찾을 수 없음 - Script ID: {script_id}")
+                    response_data["error_message"] = "대본 데이터가 만료되었거나 찾을 수 없습니다."
+            
+            print(f"📊 대본 작업 상태 조회 - Task ID: {task_id}, 상태: {task_data.get('status')}")
+            return Response(response_data, status=200)
+            
+        except Exception as e:
+            print(f"[ERROR] 상태 조회 중 오류: {str(e)}")
+            return Response({
+                "error": f"상태 조회 중 오류가 발생했습니다: {str(e)}"
+            }, status=500)
+
+
+''' 캐릭터 생성 기능 (비동기 버전) '''
+class CharacterGenerateAsyncView(APIView):
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
+    
+    @swagger_auto_schema(
+        operation_description="""책의 캐릭터들을 비동기적으로 생성합니다. (JWT 인증 필요)
+        
+        고급 처리 과정:
+        1. 즉시 Task ID 반환
+        2. 백그라운드에서 스마트 처리:
+           - PDF 다운로드 및 스마트 청킹 (페이지 크기에 따른 적응적 분할)
+           - 캐릭터 우선순위 기반 청크 선별
+           - 청크별 병렬 캐릭터 추출 (에러 재시도 포함)
+           - 중복 제거 및 스마트 병합
+           - 캐릭터별 장면 생성 및 DB 저장
+        
+        대형 PDF 대응 기능:
+        - 600페이지+ 파일 지원
+        - 컨텍스트 한계 회피를 위한 청킹
+        - Gemini API 500 에러 자동 재시도
+        - 메모리 효율적 처리
+        
+        가능한 오류:
+        - 401: 인증 필요
+        - 404: 책을 찾을 수 없음
+        - 409: 이미 캐릭터가 존재함
+        - 500: 초기 처리 실패
+        """,
+        responses={
+            202: CharacterAsyncResponseSerializer,
+            401: openapi.Response(description="인증 필요"),
+            404: CharacterErrorResponseSerializer,
+            409: openapi.Response(description="이미 캐릭터가 존재함"),
+            500: CharacterDetailedErrorResponseSerializer
+        },
+        tags=['캐릭터 관리']
+    )
+    def post(self, request, book_id):
+        print("🎭 비동기 캐릭터 생성 요청 시작")
+        print("👤 요청 사용자:", request.user.username if request.user.is_authenticated else "익명")
+        
+        try:
+            book = Book.objects.get(id=book_id)
+        except Book.DoesNotExist:
+            return Response({'error': 'Book not found'}, status=404)
+
+        # 기존 캐릭터 존재 여부 확인
+        existing_characters = Character.objects.filter(book=book, is_deleted=False)
+        if existing_characters.exists():
+            return Response({
+                'error': f'이 책에는 이미 {existing_characters.count()}개의 캐릭터가 존재합니다. 기존 캐릭터를 삭제 후 다시 시도하세요.'
+            }, status=409)
+
+        print(f"✅ 검증 완료 - 책: {book.title}")
+
+        try:
+            # 1. Celery 태스크 시작
+            from .tasks import generate_characters_task
+            task = generate_characters_task.delay(book_id=book_id)
+            
+            print(f"🚀 비동기 처리 시작 - Task ID: {task.id}")
+
+            # 2. 즉시 응답 반환
+            return Response({
+                "task_id": task.id,
+                "book_id": book_id,
+                "book_title": book.title,
+                "message": "캐릭터 생성이 시작되었습니다. 처리 상태는 GET /characters/character-tasks/{task_id}/status 로 확인 가능합니다."
+            }, status=202)  # 202 Accepted
+
+        except Exception as e:
+            print(f"[ERROR] 초기 처리 중 오류 발생: {str(e)}")
+            print(f"[ERROR] 오류 타입: {type(e).__name__}")
+            import traceback
+            print(f"[ERROR] 상세 스택 트레이스:\n{traceback.format_exc()}")
+
+            return Response({
+                'status': 'error',
+                'error_code': 500,
+                'message': f'초기 처리 중 오류가 발생했습니다: {str(e)}'
+            }, status=500)
+
+
+''' 캐릭터 생성 상태 확인 기능 (Redis 기반) '''
+class CharacterTaskStatusView(APIView):
+    """
+    캐릭터 생성 작업 상태를 확인하는 API (Redis 기반)
+    """
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="""캐릭터 생성 작업 상태를 확인합니다. (JWT 인증 필요)
+        
+        처리 상태 및 단계:
+        - PROCESSING: 처리 진행 중
+          - initialization: 초기화
+          - pdf_processing: PDF 다운로드 및 청킹
+          - character_extraction: 청크별 캐릭터 추출
+          - character_merging: 캐릭터 병합 및 중복 제거
+          - scene_generation: 장면 생성 및 DB 저장
+        - COMPLETED: 처리 완료 (생성된 캐릭터 목록 포함)
+        - FAILED: 처리 실패
+        
+        진행률 정보:
+        - 각 단계별 진행 상황 (청크 처리, 캐릭터 생성 등)
+        - 현재 처리 중인 항목 정보
+        - 예상 완료 시간 추정 가능
+        """,
+        responses={
+            200: CharacterTaskStatusResponseSerializer,
+            404: CharacterErrorResponseSerializer,
+            401: openapi.Response(description="인증 필요")
+        },
+        tags=['캐릭터 관리']
+    )
+    def get(self, request, task_id):
+        script_cache = caches['script_cache']
+        task_key = f"character_task:{task_id}"
+        
+        try:
+            # Redis에서 태스크 상태 조회
+            task_data = script_cache.get(task_key)
+            
+            if not task_data:
+                return Response({
+                    "error": "태스크를 찾을 수 없습니다. 태스크가 만료되었거나 존재하지 않습니다."
+                }, status=404)
+            
+            # 응답 데이터 구성
+            response_data = {
+                "task_id": task_id,
+                "book_id": task_data.get("book_id"),
+                "book_title": task_data.get("book_title"),
+                "status": task_data.get("status"),
+                "step": task_data.get("step"),
+                "message": task_data.get("message"),
+                
+                # 진행률 정보
+                "total_chunks": task_data.get("total_chunks"),
+                "processed_chunks": task_data.get("processed_chunks"),
+                "current_chunk": task_data.get("current_chunk"),
+                "total_characters": task_data.get("total_characters"),
+                "processed_characters": task_data.get("processed_characters"),
+                "current_character": task_data.get("current_character"),
+                
+                # 시간 정보
+                "started_at": task_data.get("started_at"),
+                "completed_at": task_data.get("completed_at"),
+                "failed_at": task_data.get("failed_at"),
+                "error_message": task_data.get("error_message")
+            }
+            
+            # 🎭 완료된 경우 캐릭터 목록과 통계도 함께 반환
+            if task_data.get("status") == "COMPLETED":
+                response_data["characters"] = task_data.get("characters", [])
+                response_data["processing_stats"] = task_data.get("processing_stats", {})
+                print(f"🎭 캐릭터 목록도 함께 반환 - Task ID: {task_id}, 캐릭터 수: {len(task_data.get('characters', []))}")
+            
+            print(f"📊 캐릭터 작업 상태 조회 - Task ID: {task_id}, 상태: {task_data.get('status')}, 단계: {task_data.get('step')}")
+            return Response(response_data, status=200)
+            
+        except Exception as e:
+            print(f"[ERROR] 상태 조회 중 오류: {str(e)}")
+            return Response({
+                "error": f"상태 조회 중 오류가 발생했습니다: {str(e)}"
             }, status=500)
 

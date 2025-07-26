@@ -24,6 +24,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 # Create your views here.
 
+
 # 책 입력 API 2가지를 정의함
 ''' 책 텍스트로 입력시 book을 생성하는 API '''
 class BookTextUploadView(APIView):
@@ -58,7 +59,132 @@ class BookTextUploadView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
     
 
+
+''' 책 PDF 업로드 API (동기) '''
 class BookFromPdfView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsAuthenticated]  # JWT 인증 필요
+
+    @swagger_auto_schema(
+        operation_description="""PDF 파일을 업로드하여 책을 즉시 생성합니다. (JWT 인증 필요)
+        
+        처리 과정 (동기):
+        1. PDF에서 텍스트 추출 (텍스트 기반 또는 OCR)
+        2. Gemini API로 내용 요약
+        3. S3에 PDF 파일 업로드
+        4. DB에 최종 정보 저장 후 완성된 책 정보 반환
+        
+        가능한 오류:
+        - 400: PDF 파일 누락, 잘못된 형식
+        - 401: 인증 필요
+        - 500: PDF 처리, Gemini API, S3 업로드 실패
+        """,
+        manual_parameters=[
+            openapi.Parameter(
+                'title',
+                openapi.IN_FORM,
+                description="책 제목",
+                type=openapi.TYPE_STRING,
+                required=True
+            ),
+            openapi.Parameter(
+                'pdf',
+                openapi.IN_FORM,
+                description="PDF 파일",
+                type=openapi.TYPE_FILE,
+                required=True
+            ),
+        ],
+        responses={
+            201: BookSuccessResponseSerializer,
+            400: BookErrorResponseSerializer,
+            401: openapi.Response(description="인증 필요"),
+            500: BookErrorResponseSerializer
+        },
+        tags=['책 관리'],
+        consumes=['multipart/form-data']
+    )
+    def post(self, request):
+        print("📝 동기 PDF 업로드 요청 시작")
+        print("👤 요청 사용자:", request.user.username if request.user.is_authenticated else "익명")
+
+        serializer = BookPdfUploadSerializer(data=request.data)
+        if not serializer.is_valid():
+            print("❌ Serializer 검증 실패:", serializer.errors)
+            return Response({
+                "status": "error",
+                "error_code": 400,
+                "message": "입력 형식이 올바르지 않습니다.",
+                "details": serializer.errors
+            }, status=400)
+
+        title = serializer.validated_data['title']
+        pdf_file = serializer.validated_data['pdf']
+
+        print(f"✅ 검증 완료 - 제목: {title}, 파일명: {pdf_file.name}")
+
+        try:
+            # 1. Book 레코드 생성 (PROCESSING 상태)
+            book = Book.objects.create(
+                title=title,
+                processing_status='PROCESSING'
+            )
+            print(f"📚 책 레코드 생성 완료 - ID: {book.id}")
+
+            # 2. PDF에서 텍스트 추출
+            print("📄 PDF 텍스트 추출 시작...")
+            extracted_text = extract_text_from_pdf(pdf_file)
+            print(f"✅ 텍스트 추출 완료 - 길이: {len(extracted_text)}자")
+
+            # 3. Gemini API로 요약
+            print("🤖 Gemini API 요약 시작...")
+            summarized_content = summarize_with_gemini(extracted_text)
+            print(f"✅ 요약 완료 - 길이: {len(summarized_content)}자")
+
+            # 4. S3에 PDF 업로드
+            print("☁️ S3 업로드 시작...")
+            pdf_file.seek(0)  # 파일 포인터 리셋
+            pdf_url = upload_to_s3(pdf_file, f"books/{book.id}")
+            print(f"✅ S3 업로드 완료 - URL: {pdf_url}")
+
+            # 5. 최종 Book 정보 업데이트 (COMPLETED 상태)
+            book.content = summarized_content
+            book.pdf_url = pdf_url
+            book.processing_status = 'COMPLETED'
+            book.save()
+            
+            print(f"🎉 책 생성 완료 - ID: {book.id}")
+
+            # 6. 완성된 책 정보 반환
+            return Response({
+                "book_id": book.id,
+                "title": book.title,
+                "content": book.content,
+                "pdf_url": book.pdf_url,
+                "status": "생성 완료"
+            }, status=201)  # 201 Created
+
+        except Exception as e:
+            print(f"[ERROR] PDF 처리 중 오류 발생: {str(e)}")
+            print(f"[ERROR] 오류 타입: {type(e).__name__}")
+            import traceback
+            print(f"[ERROR] 상세 스택 트레이스:\n{traceback.format_exc()}")
+
+            # 오류 발생 시 Book 상태 업데이트
+            if 'book' in locals():
+                book.processing_status = 'FAILED'
+                book.error_message = str(e)
+                book.save()
+
+            return Response({
+                "status": "error",
+                "error_code": 500,
+                "message": f"PDF 처리 중 오류가 발생했습니다: {str(e)}"
+            }, status=500)
+
+
+''' 책 PDF 업로드 API (비동기) '''
+class BookFromPdfAsyncView(APIView):
     parser_classes = [MultiPartParser, FormParser]
     permission_classes = [IsAuthenticated]  # JWT 인증 필요
 
@@ -100,7 +226,8 @@ class BookFromPdfView(APIView):
             401: openapi.Response(description="인증 필요"),
             500: BookErrorResponseSerializer
         },
-        tags=['책 관리']
+        tags=['책 관리'],
+        consumes=['multipart/form-data']
     )
     def post(self, request):
         print("📝 비동기 PDF 업로드 요청 시작")
@@ -171,6 +298,7 @@ class BookFromPdfView(APIView):
             }, status=500)
 
 
+''' 공용책 정보 API '''
 class BookOfficialView(APIView):
     permission_classes = [IsAuthenticated]  # JWT 인증 필요
 
@@ -195,6 +323,8 @@ class BookOfficialView(APIView):
         # 성공 응답 반환
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
+
+''' 책 동영상 API '''
 class BookVideosView(APIView):
     permission_classes = [IsAuthenticated]  # JWT 인증 필요
 
@@ -245,6 +375,8 @@ class BookVideosView(APIView):
                 "message": "서버 내부 오류가 발생했습니다."
             }, status=500)
 
+
+''' 책 등장인물 목록 조회 API '''
 class BookCharactersView(APIView):
     permission_classes = [IsAuthenticated]  # JWT 인증 필요
 
@@ -292,6 +424,8 @@ class BookCharactersView(APIView):
                 "message": "서버 내부 오류가 발생했습니다."
             }, status=500)
 
+
+''' 책 처리 상태 확인 API '''
 class BookStatusView(APIView):
     """
     책 PDF 처리 상태를 확인하는 API

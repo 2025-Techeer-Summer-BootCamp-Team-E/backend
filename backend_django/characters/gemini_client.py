@@ -600,3 +600,366 @@ def parse_scene_list(raw_text):
         print("⚠️ 씬 파싱 실패:", ve)
         print("🧠 최종 파싱 대상:", cleaned if 'cleaned' in locals() else raw_text)
         raise
+
+
+# ========================================
+# 청킹 기반 캐릭터 생성을 위한 유틸리티 함수들
+# (SmartGeminiClient에서 편입)
+# ========================================
+
+def extract_characters_from_chunk_with_retry(chunk_text: str, chunk_info: dict, max_retries: int = 3) -> list:
+    """
+    청크에서 캐릭터 정보를 추출 (재시도 로직 포함)
+    
+    Args:
+        chunk_text: 청크 텍스트
+        chunk_info: 청크 메타데이터  
+        max_retries: 최대 재시도 횟수
+        
+    Returns:
+        추출된 캐릭터 정보 리스트
+    """
+    import time
+    import random
+    
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    
+    prompt = f"""
+다음 텍스트 청크에서 등장인물들의 정보를 추출해주세요.
+
+⚠️ 중요 규칙:
+- 반드시 유효한 JSON 배열만 출력하세요. 설명이나 추가 텍스트는 절대 포함하지 마세요.
+- 이 청크에서 실제로 등장하는 인물만 추출하세요.
+- 불분명하거나 애매한 인물은 제외하세요.
+
+청크 정보:
+- 청크 번호: {chunk_info.get('chunk_number')}
+- 예상 페이지: {chunk_info.get('estimated_start_page')}-{chunk_info.get('estimated_end_page')}
+
+요청사항:
+각 인물은 다음 정보를 포함해야 해:
+- characterName: 이름 (문자열)
+- isMain: 주인공 가능성 (true 또는 false)
+- age: 추정 나이 (정수, 불명확하면 25)
+- gender: 성별 ("남성" 또는 "여성" 또는 "불명")
+- characterDescription: 인물 설명 (30-50자)
+- chunkSource: {chunk_info.get('chunk_number')} (이 청크에서 발견되었음을 표시)
+
+JSON 형식:
+[
+  {{
+    "characterName": "홍길동",
+    "isMain": true,
+    "age": 25,
+    "gender": "남성",
+    "characterDescription": "의적으로 활동하며 백성들을 도와주는 정의로운 인물",
+    "chunkSource": {chunk_info.get('chunk_number')}
+  }}
+]
+
+텍스트 청크:
+{chunk_text[:8000]}
+"""
+
+    for retry_count in range(max_retries + 1):
+        try:
+            print(f"🤖 청크 {chunk_info.get('chunk_number')} Gemini 요청 시작... (시도 {retry_count + 1}/{max_retries + 1})")
+            
+            response = model.generate_content(prompt)
+            raw_text = response.text.strip()
+            
+            # JSON 파싱 시도
+            characters = parse_character_response_safe(raw_text)
+            
+            print(f"✅ 청크 {chunk_info.get('chunk_number')} 처리 완료 - {len(characters)}명 발견")
+            return characters
+            
+        except Exception as e:
+            print(f"❌ 청크 {chunk_info.get('chunk_number')} 처리 실패: {str(e)}")
+            
+            if retry_count < max_retries:
+                delay = 2 * (2 ** retry_count) + random.uniform(0, 1)
+                print(f"🔄 {delay:.1f}초 후 재시도...")
+                time.sleep(delay)
+            else:
+                print(f"💥 청크 {chunk_info.get('chunk_number')} 최대 재시도 초과")
+                return []
+
+def merge_and_deduplicate_characters(all_characters: list) -> list:
+    """
+    여러 청크에서 추출된 캐릭터들을 병합하고 중복 제거
+    
+    Args:
+        all_characters: 청크별 캐릭터 리스트들
+        
+    Returns:
+        병합된 최종 캐릭터 리스트
+    """
+    # 모든 캐릭터를 하나의 리스트로 합치기
+    flattened_characters = []
+    for chunk_characters in all_characters:
+        flattened_characters.extend(chunk_characters)
+    
+    if not flattened_characters:
+        return []
+    
+    print(f"🔍 병합 전 총 캐릭터 수: {len(flattened_characters)}")
+    
+    # 이름 기반 그룹핑 (유사한 이름들도 고려)
+    character_groups = {}
+    
+    for char in flattened_characters:
+        name = char['characterName'].strip()
+        
+        # 기존 그룹과 유사한 이름 찾기
+        matched_group = None
+        for existing_name in character_groups.keys():
+            if are_similar_names(name, existing_name):
+                matched_group = existing_name
+                break
+        
+        if matched_group:
+            character_groups[matched_group].append(char)
+        else:
+            character_groups[name] = [char]
+    
+    # 각 그룹에서 최고의 캐릭터 선택
+    final_characters = []
+    for name_group, chars in character_groups.items():
+        best_char = select_best_character(chars)
+        final_characters.append(best_char)
+    
+    # 주인공 우선, 이름 순으로 정렬
+    final_characters.sort(key=lambda x: (not x['isMain'], x['characterName']))
+    
+    print(f"✅ 중복 제거 완료 - 최종 캐릭터 수: {len(final_characters)}")
+    return final_characters
+
+def are_similar_names(name1: str, name2: str) -> bool:
+    """
+    두 이름이 유사한지 판단 (별명, 축약 등 고려)
+    """
+    name1, name2 = name1.lower().strip(), name2.lower().strip()
+    
+    # 완전 일치
+    if name1 == name2:
+        return True
+    
+    # 한 이름이 다른 이름에 포함되는 경우
+    if name1 in name2 or name2 in name1:
+        return True
+    
+    # 편집 거리 기반 유사도 (간단한 버전)
+    if len(name1) >= 2 and len(name2) >= 2:
+        common_chars = set(name1) & set(name2)
+        if len(common_chars) >= min(len(name1), len(name2)) * 0.7:
+            return True
+    
+    return False
+
+def select_best_character(chars: list) -> dict:
+    """
+    같은 캐릭터의 여러 버전 중 최고의 것 선택
+    """
+    # 설명이 가장 자세한 것 우선
+    best_char = max(chars, key=lambda x: len(x.get('characterDescription', '')))
+    
+    # 여러 청크에서 발견된 정보 병합
+    all_chunk_sources = []
+    for char in chars:
+        if 'chunkSource' in char:
+            all_chunk_sources.append(char['chunkSource'])
+    
+    best_char['chunkSources'] = sorted(set(all_chunk_sources))
+    best_char['discoveryCount'] = len(all_chunk_sources)
+    
+    return best_char
+
+def create_character_scenes_with_retry(character: dict, book_content_summary: str, max_retries: int = 3) -> list:
+    """
+    캐릭터를 위한 장면 정보 생성 (재시도 로직 포함)
+    """
+    import time
+    import random
+    
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    
+    # 프롬프트 최적화 (길이 단축)
+    book_summary = book_content_summary[:500] if book_content_summary else "책 내용 요약 없음"
+    
+    prompt = f"""
+캐릭터 '{character['characterName']}'의 등장 장면을 생성해주세요.
+
+캐릭터 정보:
+- 이름: {character['characterName']}
+- 설명: {character['characterDescription']}
+
+책 요약: {book_summary}
+
+요청사항:
+- 1-2개의 주요 장면만 생성
+- 각 장면은 200-300자의 간결한 묘사
+- 반드시 JSON 배열만 출력하세요
+
+JSON 형식:
+[
+  {{
+    "scene_content": "간결한 장면 묘사 (200-300자)",
+    "start_page": 1,
+    "finish_page": 5
+  }}
+]
+"""
+
+    for retry_count in range(max_retries + 1):
+        try:
+            # API 호출 간격 조절 (Rate Limit 방지)
+            if retry_count == 0:
+                time.sleep(random.uniform(0.5, 1.5))
+            
+            print(f"🎬 '{character['characterName']}' 장면 생성 시작... (시도 {retry_count + 1}/{max_retries + 1})")
+            
+            response = model.generate_content(prompt)
+            raw_text = response.text.strip()
+            
+            # 장면 전용 파싱
+            scenes = parse_scene_response_safe(raw_text)
+            
+            if scenes:
+                print(f"✅ '{character['characterName']}' 장면 생성 완료 - {len(scenes)}개")
+                return scenes
+            else:
+                print(f"⚠️ '{character['characterName']}' 장면 파싱 실패")
+                if retry_count == max_retries:
+                    return create_default_scene(character)
+        
+        except Exception as e:
+            print(f"❌ '{character['characterName']}' 장면 생성 실패: {str(e)}")
+            
+            if retry_count < max_retries:
+                delay = 2 * (2 ** retry_count) + random.uniform(1, 3)
+                print(f"🔄 {delay:.1f}초 후 재시도...")
+                time.sleep(delay)
+            else:
+                print(f"💥 '{character['characterName']}' 최대 재시도 초과, 기본 장면 생성")
+                return create_default_scene(character)
+
+def parse_character_response_safe(raw_text: str) -> list:
+    """
+    캐릭터 전용 안전한 JSON 파싱
+    """
+    try:
+        import re
+        import json
+        
+        # JSON 블록 찾기
+        json_pattern = r'\[[\s\S]*\]'
+        json_match = re.search(json_pattern, raw_text)
+        
+        if json_match:
+            json_text = json_match.group()
+            characters = json.loads(json_text)
+            
+            # 유효성 검사
+            if isinstance(characters, list):
+                valid_characters = []
+                for char in characters:
+                    if validate_character_data(char):
+                        valid_characters.append(char)
+                return valid_characters
+        
+        print(f"⚠️ 캐릭터 JSON 파싱 실패, 원본 응답: {raw_text[:200]}...")
+        return []
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ 캐릭터 JSON 디코딩 실패: {str(e)}")
+        return []
+    except Exception as e:
+        print(f"❌ 캐릭터 응답 파싱 실패: {str(e)}")
+        return []
+
+def parse_scene_response_safe(raw_text: str) -> list:
+    """
+    장면 전용 안전한 JSON 파싱
+    """
+    try:
+        import re
+        import json
+        
+        # JSON 배열 패턴 찾기
+        json_pattern = r'\[[\s\S]*?\]'
+        json_match = re.search(json_pattern, raw_text)
+        
+        if json_match:
+            json_text = json_match.group()
+            scenes = json.loads(json_text)
+            
+            if isinstance(scenes, list):
+                valid_scenes = []
+                for scene in scenes:
+                    if validate_scene_data(scene):
+                        valid_scenes.append(scene)
+                return valid_scenes[:2]  # 최대 2개
+        
+        print(f"⚠️ 장면 JSON 파싱 실패: {raw_text[:150]}...")
+        return []
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ 장면 JSON 디코딩 실패: {str(e)}")
+        return []
+    except Exception as e:
+        print(f"❌ 장면 파싱 실패: {str(e)}")
+        return []
+
+def validate_character_data(char: dict) -> bool:
+    """
+    캐릭터 정보 유효성 검사
+    """
+    required_fields = ['characterName', 'isMain', 'age', 'gender', 'characterDescription']
+    
+    for field in required_fields:
+        if field not in char:
+            return False
+    
+    # 이름 길이 체크
+    if not char['characterName'] or len(char['characterName']) > 50:
+        return False
+        
+    # 나이 범위 체크
+    if not isinstance(char['age'], int) or char['age'] < 1 or char['age'] > 200:
+        return False
+        
+    return True
+
+def validate_scene_data(scene: dict) -> bool:
+    """
+    장면 정보 유효성 검사
+    """
+    required_fields = ['scene_content']
+    
+    for field in required_fields:
+        if field not in scene:
+            return False
+    
+    # 장면 내용 길이 체크
+    content = scene.get('scene_content', '')
+    if not content or len(content) < 50:  # 최소 50자
+        return False
+        
+    # 페이지 정보가 없으면 기본값 설정
+    if 'start_page' not in scene:
+        scene['start_page'] = 1
+    if 'finish_page' not in scene:
+        scene['finish_page'] = scene['start_page'] + 5
+        
+    return True
+
+def create_default_scene(character: dict) -> list:
+    """
+    API 실패 시 기본 장면 생성
+    """
+    return [{
+        "scene_content": f"{character['characterName']}이(가) 중요한 역할을 하는 장면입니다. {character.get('characterDescription', '캐릭터의 개성과 행동이 잘 드러나는 상황에서 다른 인물들과 상호작용하며 이야기를 전개해 나갑니다.')}",
+        "start_page": 1,
+        "finish_page": 10
+    }]

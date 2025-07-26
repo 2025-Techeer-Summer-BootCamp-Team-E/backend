@@ -110,7 +110,7 @@ from drf_yasg import openapi
 class LoginAPIView(APIView):
     """JWT 로그인 API"""
     permission_classes = [AllowAny] # 누구나 접근 가능(로그인이기 때문에)
-    parser_classes = [JSONParser, MultiPartParser, FormParser]  # 여러 파서 지원
+    parser_classes = [JSONParser]  # JSON 요청만 지원
     
     @swagger_auto_schema(
         operation_description="""JWT 토큰 기반 로그인 API
@@ -172,7 +172,7 @@ class LoginAPIView(APIView):
 class SignupAPIView(APIView):
     """JWT 회원가입 API"""
     permission_classes = [AllowAny] # 누구나 접근 가능(회원가입 기능이므로)
-    parser_classes = [JSONParser, MultiPartParser, FormParser]  # 여러 파서 지원
+    parser_classes = [JSONParser]  # JSON 요청만 지원
     
     @swagger_auto_schema(
         operation_description="""JWT 토큰 기반 회원가입 API
@@ -336,7 +336,7 @@ class CustomTokenRefreshView(TokenRefreshView):
 class LogoutAPIView(APIView):
     """JWT 로그아웃 API"""
     permission_classes = [IsAuthenticated]  # 인증된 사용자만 접근 가능
-    parser_classes = [JSONParser, MultiPartParser, FormParser]
+    parser_classes = [JSONParser]  # JSON 요청만 지원
     
     @swagger_auto_schema(
         operation_description="""JWT 토큰 기반 로그아웃 API
@@ -445,7 +445,7 @@ class LogoutAPIView(APIView):
 class LogoutAllAPIView(APIView):
     """모든 기기에서 로그아웃 API"""
     permission_classes = [IsAuthenticated]
-    parser_classes = [JSONParser, MultiPartParser, FormParser]
+    parser_classes = [JSONParser]  # JSON 요청만 지원
     
     @swagger_auto_schema(
         operation_description="""모든 기기에서 JWT 로그아웃 API
