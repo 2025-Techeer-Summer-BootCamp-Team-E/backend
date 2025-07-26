@@ -53,12 +53,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://epi-log.site",
     "https://www.epi-log.site",
     "http://www.epi-log.site",
+    "https://epi-log.vercel.app",
 ]
 
 # 개발/테스트용 (Postman, 로컬 클라이언트 등)
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.epi-log\.site$",
     r"^http://.*\.epi-log\.site$",
+    r"^https?://epi-log-.*\.vercel\.app$",
 ]
 
 # 추가 허용 오리진 (필요시)
@@ -98,6 +100,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://epi-log.site", 
     "https://www.epi-log.site",
     "http://www.epi-log.site",
+    "https://epi-log.vercel.app",
 ]
 
 # 참고: Django REST Framework의 APIView는 자동으로 csrf_exempt 적용됨
