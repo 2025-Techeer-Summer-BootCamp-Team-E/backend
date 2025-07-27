@@ -149,6 +149,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist', # JWT 토큰 블랙리스트 추가
     'drf_yasg', # Django REST framework Swagger 추가
     'corsheaders', # CORS 허용 허락
+    'django_eventstream', # SSE 실시간 알림
 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -188,7 +189,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
 
 
 # Database

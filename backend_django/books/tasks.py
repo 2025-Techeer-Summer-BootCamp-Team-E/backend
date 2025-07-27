@@ -6,6 +6,7 @@ from .models import Book
 from .pdf_utils import extract_text_from_pdf
 from .gemini_client import summarize_with_gemini
 from .s3_client import upload_to_s3
+from .eventstream_views import notify_book_progress
 
 @shared_task(bind=True)
 def process_book_pdf_task(self, book_id, pdf_file_content, pdf_file_name):
@@ -24,6 +25,11 @@ def process_book_pdf_task(self, book_id, pdf_file_content, pdf_file_name):
         book.task_id = self.request.id
         book.save()
         
+        # 📡 실시간 알림: 처리 시작
+        notify_book_progress(book_id, 'PROCESSING', 
+                           title=book.title, 
+                           message='PDF 처리를 시작합니다...')
+        
         print(f"📚 책 PDF 처리 시작 - ID: {book_id}, 제목: {book.title}")
         
         # base64 디코딩하여 임시 파일 생성
@@ -37,6 +43,11 @@ def process_book_pdf_task(self, book_id, pdf_file_content, pdf_file_name):
         try:
             # 1. PDF 텍스트 추출
             print("📖 PDF 텍스트 추출 시작...")
+            # 📡 실시간 알림: 텍스트 추출 시작
+            notify_book_progress(book_id, 'PROCESSING',
+                               step='text_extraction',
+                               message='PDF에서 텍스트를 추출하고 있습니다...')
+            
             # Django의 ContentFile로 변환하여 기존 함수 재사용
             with open(temp_file_path, 'rb') as f:
                 pdf_file = ContentFile(f.read(), name=pdf_file_name)
@@ -46,11 +57,21 @@ def process_book_pdf_task(self, book_id, pdf_file_content, pdf_file_name):
             
             # 2. Gemini 요약
             print("🤖 Gemini API 요약 시작...")
+            # 📡 실시간 알림: AI 요약 시작
+            notify_book_progress(book_id, 'PROCESSING',
+                               step='ai_summary',
+                               message='AI가 내용을 요약하고 있습니다...')
+            
             summary = summarize_with_gemini(extracted_text)
             print(f"📝 요약 완료: {len(summary)} 문자")
             
             # 3. S3 업로드
             print("☁️ S3 업로드 시작...")
+            # 📡 실시간 알림: 파일 업로드
+            notify_book_progress(book_id, 'PROCESSING',
+                               step='file_upload',
+                               message='클라우드에 파일을 업로드하고 있습니다...')
+            
             pdf_file.seek(0)  # 파일 포인터 초기화
             pdf_url = upload_to_s3(pdf_file)
             print(f"🔗 S3 업로드 완료: {pdf_url}")
@@ -61,6 +82,13 @@ def process_book_pdf_task(self, book_id, pdf_file_content, pdf_file_name):
             book.processing_status = 'COMPLETED'
             book.error_message = None
             book.save()
+            
+            # 📡 실시간 알림: 처리 완료
+            notify_book_progress(book_id, 'COMPLETED',
+                               step='completed',
+                               message=f'책 "{book.title}" 처리가 완료되었습니다!',
+                               content=summary,
+                               pdf_url=pdf_url)
             
             print(f"✅ 책 PDF 처리 완료 - ID: {book_id}")
             
@@ -94,6 +122,12 @@ def process_book_pdf_task(self, book_id, pdf_file_content, pdf_file_name):
             book.processing_status = 'FAILED'
             book.error_message = error_msg
             book.save()
+            
+            # 📡 실시간 알림: 처리 실패
+            notify_book_progress(book_id, 'FAILED',
+                               step='failed',
+                               message=f'책 처리 중 오류가 발생했습니다: {error_msg}',
+                               error_message=error_msg)
         except:
             pass
         

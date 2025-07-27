@@ -28,6 +28,7 @@ urlpatterns = [
     path('veo3Video/', include('veo3Video.urls')),
     path('characters/', include('characters.urls')),
     path('users/', include('users.urls')),
+    path('events/', include('django_eventstream.urls')),  # SSE 실시간 이벤트
     path("", index),
     
     path('', include('django_prometheus.urls')),

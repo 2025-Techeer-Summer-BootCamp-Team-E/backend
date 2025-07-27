@@ -16,35 +16,63 @@ from .pdf_chunker import (
     prioritize_character_chunks
 )
 from books.models import Book
+from books.eventstream_views import notify_character_progress, notify_character_completed, notify_script_progress, notify_script_completed
 import datetime
 
 # Celery 전용 로거 설정
 logger = get_task_logger(__name__)
 
 @shared_task(bind=True)
-def generate_script_task(self, character_id, scene_count=3):
+def generate_script_task(self, character_id, scene_count=3, script_id=None):
     """
     대본을 비동기적으로 생성하는 Celery 태스크 (Redis 기반)
     
     Args:
         character_id: Character ID
         scene_count: 생성할 장면 수
+        script_id: 미리 생성된 Script ID (없으면 자동 생성)
     """
     task_id = self.request.id
     script_cache = caches['script_cache']
     
+    # 🆔 script_id 처리 (미리 제공되지 않으면 생성)
+    if not script_id:
+        import uuid
+        script_id = str(uuid.uuid4())
+    
     # Redis에 태스크 상태 저장
     task_key = f"task:{task_id}"
+    script_key = f"script:{script_id}"
     
     try:
-        # 1. 초기 상태 저장
-        script_cache.set(task_key, {
+        # 1. 초기 상태 저장 (script_id 포함)
+        init_data = {
             "status": "PROCESSING",
             "character_id": character_id,
             "scene_count": scene_count,
+            "script_id": script_id,  # 🔑 즉시 script_id 저장
             "started_at": datetime.datetime.now().isoformat(),
             "message": "대본 생성 중..."
-        }, timeout=3600)  # 1시간
+        }
+        script_cache.set(task_key, init_data, timeout=3600)  # 1시간
+        
+        # script:{script_id} 키에도 초기 상태 저장 (EventStream용)
+        script_init_data = {
+            "character_id": character_id,
+            "characterId": character_id,  # 호환성
+            "character_name": "",  # 나중에 Character 조회 후 업데이트
+            "script_id": script_id,
+            "status": "PROCESSING",
+            "started_at": datetime.datetime.now().isoformat(),
+            "message": "대본 생성 중...",
+            "scene_count": scene_count,
+            "scenes": []  # 빈 장면 리스트로 시작
+        }
+        script_cache.set(script_key, script_init_data, timeout=2000)
+        
+        # 📡 실시간 알림: 대본 생성 시작 (중복 키 제거)
+        init_data_for_notify = {k: v for k, v in init_data.items() if k not in ['status', 'script_id']}
+        notify_script_progress(script_id, "PROCESSING", **init_data_for_notify)
         
         logger.info(f"📝 [TASK START] 대본 생성 시작 - Character ID: {character_id}, Task ID: {task_id}")
         
@@ -62,14 +90,19 @@ def generate_script_task(self, character_id, scene_count=3):
         logger.info("🤖 [STEP 1/2] Gemini API 대본 생성 시작...")
         
         # 진행 상태 업데이트
-        script_cache.set(task_key, {
+        gemini_data = {
             "status": "PROCESSING",
             "character_id": character_id,
             "character_name": character.characterName,
             "scene_count": scene_count,
             "started_at": datetime.datetime.now().isoformat(),
             "message": "Gemini API로 대본 생성 중..."
-        }, timeout=3600)
+        }
+        script_cache.set(task_key, gemini_data, timeout=3600)
+        
+        # 📡 실시간 알림: AI 대본 생성 중 (중복 키 제거)
+        gemini_data_for_notify = {k: v for k, v in gemini_data.items() if k not in ['status']}
+        notify_script_progress(script_id, "PROCESSING", **gemini_data_for_notify)
         
         raw_text = generate_scenes_with_gemini(
             main_character=character,
@@ -93,9 +126,9 @@ def generate_script_task(self, character_id, scene_count=3):
         
         parsed_result = parse_scene_list(raw_text)
         
-        script_id = parsed_result.get("script_id")
+        # 🆔 미리 생성된 script_id 사용 (파싱된 것 무시)
         scene_texts = parsed_result.get("scenes", [])
-        logger.info(f"🔍 [PARSING] 파싱 완료 - Script ID: {script_id}, 장면 수: {len(scene_texts)}")
+        logger.info(f"🔍 [PARSING] 파싱 완료 - Script ID: {script_id} (미리 생성됨), 장면 수: {len(scene_texts)}")
         
         # scene 구조 생성
         generated_scenes = []
@@ -113,16 +146,24 @@ def generate_script_task(self, character_id, scene_count=3):
                 "rewriting_id": scene.get("rewriting_id")
             })
         
-        # 대본을 Redis에 저장
+        # 대본을 Redis에 저장 (상태 정보 포함)
         script_cache_key = f"script:{script_id}"
         script_cache.set(script_cache_key, {
             "characterId": character_id,
-            "scenes": generated_scenes
+            "character_id": character_id,  # 호환성을 위해 두 형태 모두 저장
+            "character_name": character.characterName,
+            "scenes": generated_scenes,
+            "scene_count": len(generated_scenes),
+            "script_id": script_id,
+            "status": "COMPLETED",
+            "started_at": datetime.datetime.now().isoformat(),
+            "completed_at": datetime.datetime.now().isoformat(),
+            "message": "대본 생성이 완료되었습니다."
         }, timeout=2000)  # 2000초 동안 캐시
         logger.info(f"💾 [CACHE] Redis 대본 캐싱 완료 - Key: {script_cache_key}")
         
         # 4. 완료 상태 저장
-        script_cache.set(task_key, {
+        completed_data = {
             "status": "COMPLETED",
             "character_id": character_id,
             "character_name": character.characterName,
@@ -131,7 +172,26 @@ def generate_script_task(self, character_id, scene_count=3):
             "started_at": datetime.datetime.now().isoformat(),
             "completed_at": datetime.datetime.now().isoformat(),
             "message": "대본 생성이 완료되었습니다."
-        }, timeout=3600)
+        }
+        script_cache.set(task_key, completed_data, timeout=3600)
+        
+        # 📡 실시간 알림: 대본 생성 완료 (Redis 데이터 포함)
+        # Redis에서 완전한 대본 데이터 가져오기
+        full_script_data = script_cache.get(script_cache_key)
+        
+        notify_script_completed(script_id, {
+            "script_id": script_id,
+            "character_id": character_id,
+            "character_name": character.characterName,
+            "scene_count": len(generated_scenes),
+            "scenes": full_script_data.get("scenes", []) if full_script_data else generated_scenes,
+            # Redis에서 가져온 완전한 대본 데이터
+            "redis_data": full_script_data,
+            "processing_stats": {
+                "total_scenes": len(generated_scenes),
+                "generation_time": (datetime.datetime.now() - datetime.datetime.fromisoformat(completed_data["started_at"])).total_seconds()
+            }
+        })
         
         logger.info(f"✅ [TASK COMPLETE] 대본 생성 완료 - Task ID: {task_id}, Script ID: {script_id}")
         
@@ -148,14 +208,19 @@ def generate_script_task(self, character_id, scene_count=3):
         logger.error(f"❌ [ERROR] {error_msg}")
         
         # 실패 상태 저장
-        script_cache.set(task_key, {
+        error_data = {
             "status": "FAILED",
             "character_id": character_id,
             "scene_count": scene_count,
             "started_at": datetime.datetime.now().isoformat(),
             "failed_at": datetime.datetime.now().isoformat(),
             "error_message": error_msg
-        }, timeout=3600)
+        }
+        script_cache.set(task_key, error_data, timeout=3600)
+        
+        # 📡 실시간 알림: 대본 생성 실패 (중복 키 제거)
+        error_data_for_notify = {k: v for k, v in error_data.items() if k not in ['status']}
+        notify_script_progress(script_id, "FAILED", **error_data_for_notify)
         
         return {"status": "error", "message": error_msg}
     
@@ -165,14 +230,19 @@ def generate_script_task(self, character_id, scene_count=3):
         logger.error(f"❌ [ERROR] 오류 타입: {type(e).__name__}")
         
         # 실패 상태 저장
-        script_cache.set(task_key, {
+        error_data = {
             "status": "FAILED",
             "character_id": character_id,
             "scene_count": scene_count,
             "started_at": datetime.datetime.now().isoformat(),
             "failed_at": datetime.datetime.now().isoformat(),
             "error_message": error_msg
-        }, timeout=3600)
+        }
+        script_cache.set(task_key, error_data, timeout=3600)
+        
+        # 📡 실시간 알림: 대본 생성 실패 (중복 키 제거)
+        error_data_for_notify = {k: v for k, v in error_data.items() if k not in ['status']}
+        notify_script_progress(script_id, "FAILED", **error_data_for_notify)
         
         import traceback
         logger.error(f"❌ [ERROR] 상세 스택 트레이스:\n{traceback.format_exc()}")
@@ -201,13 +271,17 @@ def generate_characters_task(self, book_id):
     
     try:
         # 1. 초기 상태 저장
-        script_cache.set(task_key, {
+        init_data = {
             "status": "PROCESSING",
             "book_id": book_id,
             "step": "initialization",
             "started_at": datetime.datetime.now().isoformat(),
             "message": "캐릭터 생성 초기화 중..."
-        }, timeout=7200)  # 2시간
+        }
+        script_cache.set(task_key, init_data, timeout=7200)  # 2시간
+        
+        # 📡 실시간 알림: 초기화 시작
+        notify_character_progress(book_id, task_id, "initialization", init_data)
         
         logger.info(f"🎭 [TASK START] 캐릭터 생성 시작 - Book ID: {book_id}, Task ID: {task_id}")
         
@@ -216,14 +290,18 @@ def generate_characters_task(self, book_id):
         logger.info(f"📚 [BOOK] 책 정보 로드 - 제목: '{book.title}'")
         
         # 2. PDF 다운로드 및 청킹
-        script_cache.set(task_key, {
+        pdf_data = {
             "status": "PROCESSING",
             "book_id": book_id,
             "book_title": book.title,
             "step": "pdf_processing",
             "started_at": datetime.datetime.now().isoformat(),
             "message": "PDF 다운로드 및 청킹 중..."
-        }, timeout=7200)
+        }
+        script_cache.set(task_key, pdf_data, timeout=7200)
+        
+        # 📡 실시간 알림: PDF 처리 시작
+        notify_character_progress(book_id, task_id, "pdf_processing", pdf_data)
         
         logger.info("📄 [STEP 1/4] PDF 다운로드 시작...")
         pdf_content = fetch_pdf_from_s3(book_id)
@@ -299,6 +377,13 @@ def generate_characters_task(self, book_id):
         if not final_characters:
             raise Exception("캐릭터 추출 실패: 유효한 캐릭터가 발견되지 않았습니다.")
         
+        # 🎭 캐릭터 10명 제한 (주인공 우선순위 유지)
+        if len(final_characters) > 10:
+            logger.info(f"📊 캐릭터 수 제한: {len(final_characters)}명 → 10명 (주인공 우선)")
+            final_characters = final_characters[:10]  # 이미 주인공 우선, 이름순으로 정렬되어 있음
+        
+        logger.info(f"✅ 최종 선택된 캐릭터 수: {len(final_characters)}명")
+        
         # 5. 장면 생성 및 DB 저장
         script_cache.set(task_key, {
             "status": "PROCESSING",
@@ -316,7 +401,7 @@ def generate_characters_task(self, book_id):
         created_characters = []
         for i, char_data in enumerate(final_characters):
             # 진행 상황 업데이트
-            script_cache.set(task_key, {
+            scene_progress = {
                 "status": "PROCESSING",
                 "book_id": book_id,
                 "book_title": book.title,
@@ -325,8 +410,12 @@ def generate_characters_task(self, book_id):
                 "processed_characters": i,
                 "current_character": char_data['characterName'],
                 "started_at": datetime.datetime.now().isoformat(),
-                "message": f"장면 생성 및 저장 중... ({i}/{len(final_characters)}) - {char_data['characterName']}"
-            }, timeout=7200)
+                "message": f"장면 생성 및 저장 중... ({i+1}/{len(final_characters)}) - {char_data['characterName']}"
+            }
+            script_cache.set(task_key, scene_progress, timeout=7200)
+            
+            # 📡 실시간 알림: 장면 생성 진행
+            notify_character_progress(book_id, task_id, "scene_generation", scene_progress)
             
             try:
                 # 캐릭터 생성
@@ -368,10 +457,10 @@ def generate_characters_task(self, book_id):
                     'isMain': character.isMain,
                     'age': character.age,
                     'gender': character.gender,
-                    'characterDescription': character.characterDescription,
-                    'scenes': scene_data,
-                    'discoveryCount': char_data.get('discoveryCount', 1),
-                    'chunkSources': char_data.get('chunkSources', [])
+                    'characterDescription': character.characterDescription
+                    # 'scenes': scene_data,  # EventStream에서는 scenes 제외 (응답 크기 최적화)
+                    # 'discoveryCount': char_data.get('discoveryCount', 1),  # 내부 처리 정보 제외
+                    # 'chunkSources': char_data.get('chunkSources', [])      # 내부 처리 정보 제외
                 })
                 
                 logger.info(f"✅ 캐릭터 '{character.characterName}' 생성 완료 - {len(scene_data)}개 장면")
@@ -381,7 +470,7 @@ def generate_characters_task(self, book_id):
                 continue
         
         # 6. 완료 상태 저장
-        script_cache.set(task_key, {
+        completed_data = {
             "status": "COMPLETED",
             "book_id": book_id,
             "book_title": book.title,
@@ -397,7 +486,11 @@ def generate_characters_task(self, book_id):
             "started_at": datetime.datetime.now().isoformat(),
             "completed_at": datetime.datetime.now().isoformat(),
             "message": f"캐릭터 생성이 완료되었습니다. 총 {len(created_characters)}명의 캐릭터가 생성되었습니다."
-        }, timeout=7200)
+        }
+        script_cache.set(task_key, completed_data, timeout=7200)
+        
+        # 📡 실시간 알림: 캐릭터 생성 완료
+        notify_character_completed(book_id, task_id, created_characters)
         
         logger.info(f"✅ [TASK COMPLETE] 캐릭터 생성 완료 - Task ID: {task_id}, 캐릭터 수: {len(created_characters)}")
         
@@ -430,13 +523,17 @@ def generate_characters_task(self, book_id):
         logger.error(f"❌ [ERROR] 오류 타입: {type(e).__name__}")
         
         # 실패 상태 저장
-        script_cache.set(task_key, {
+        error_data = {
             "status": "FAILED",
             "book_id": book_id,
             "started_at": datetime.datetime.now().isoformat(),
             "failed_at": datetime.datetime.now().isoformat(),
             "error_message": error_msg
-        }, timeout=7200)
+        }
+        script_cache.set(task_key, error_data, timeout=7200)
+        
+        # 📡 실시간 알림: 캐릭터 생성 실패
+        notify_character_progress(book_id, task_id, "failed", error_data)
         
         import traceback
         logger.error(f"❌ [ERROR] 상세 스택 트레이스:\n{traceback.format_exc()}")

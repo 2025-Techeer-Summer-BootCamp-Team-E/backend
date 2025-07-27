@@ -6,6 +6,13 @@ class CharacterSceneSerializer(serializers.ModelSerializer):
         model = CharacterScene
         fields = ['id', 'scene_content', 'start_page', 'finish_page']
 
+class CharacterSimpleSerializer(serializers.ModelSerializer):
+    """Scenes 없이 캐릭터 기본 정보만 반환하는 Serializer"""
+    
+    class Meta:
+        model = Character
+        fields = ['id', 'characterName', 'isMain', 'age', 'gender', 'characterDescription']
+
 class CharacterSerializer(serializers.ModelSerializer):
     scenes = CharacterSceneSerializer(many=True, read_only=True)
     

@@ -53,7 +53,7 @@ services:
     image: backend-django
     container_name: backend-django
     build: .
-    command: sh -c "uv pip install --system --no-cache-dir -r requirements.txt && python manage.py runserver 0.0.0.0:8000"
+    command: sh -c "uv pip install --system --no-cache-dir -r requirements.txt && gunicorn config.asgi:application -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --reload"
     volumes:
       - .:/backend
       - ./gcp-key.json:/app/gcp-key.json # GCP veo 키 파일 마운트
@@ -82,7 +82,7 @@ services:
       watch:
         - path: .
           target: /backend
-          action: sync+restart
+          action: sync
         - path: ./requirements.txt
           target: /backend/requirements.txt
           action: rebuild

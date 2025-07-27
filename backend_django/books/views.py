@@ -282,7 +282,7 @@ class BookFromPdfAsyncView(APIView):
                 "title": book.title,
                 "processing_status": book.processing_status,
                 "task_id": task.id,
-                "message": "PDF 처리가 시작되었습니다. 처리 상태는 GET /books/{book_id}/status 로 확인 가능합니다."
+                "message": "PDF 처리가 시작되었습니다. 실시간 처리 상태는 EventStream을 통해 확인 가능합니다: GET /books/{book_id}/eventstream/processing"
             }, status=202)  # 202 Accepted
 
         except Exception as e:
@@ -425,51 +425,51 @@ class BookCharactersView(APIView):
             }, status=500)
 
 
-''' 책 처리 상태 확인 API '''
-class BookStatusView(APIView):
-    """
-    책 PDF 처리 상태를 확인하는 API
-    """
-    permission_classes = [IsAuthenticated]
+# ''' 책 처리 상태 확인 API (Polling 방식 - 더 이상 사용 안함) '''
+# class BookStatusView(APIView):
+#     """
+#     책 PDF 처리 상태를 확인하는 API
+#     """
+#     permission_classes = [IsAuthenticated]
 
-    @swagger_auto_schema(
-        operation_description="""책 PDF 처리 상태를 확인합니다. (JWT 인증 필요)
+#     @swagger_auto_schema(
+#         operation_description="""책 PDF 처리 상태를 확인합니다. (JWT 인증 필요)
         
-        처리 상태:
-        - PENDING: 처리 대기 중
-        - PROCESSING: 처리 진행 중  
-        - COMPLETED: 처리 완료
-        - FAILED: 처리 실패
-        """,
-        responses={
-            200: BookStatusResponseSerializer,
-            404: BookErrorResponseSerializer,
-            401: openapi.Response(description="인증 필요")
-        },
-        tags=['책 관리']
-    )
-    def get(self, request, book_id):
-        try:
-            book = Book.objects.get(id=book_id, is_deleted=False)
+#         처리 상태:
+#         - PENDING: 처리 대기 중
+#         - PROCESSING: 처리 진행 중  
+#         - COMPLETED: 처리 완료
+#         - FAILED: 처리 실패
+#         """,
+#         responses={
+#             200: BookStatusResponseSerializer,
+#             404: BookErrorResponseSerializer,
+#             401: openapi.Response(description="인증 필요")
+#         },
+#         tags=['책 관리']
+#     )
+#     def get(self, request, book_id):
+#         try:
+#             book = Book.objects.get(id=book_id, is_deleted=False)
             
-            response_data = {
-                "book_id": book.id,
-                "title": book.title,
-                "processing_status": book.processing_status,
-                "task_id": book.task_id,
-                "content": book.content,
-                "pdf_url": book.pdf_url,
-                "error_message": book.error_message,
-                "created_at": book.created_at,
-                "updated_at": book.updated_at
-            }
+#             response_data = {
+#                 "book_id": book.id,
+#                 "title": book.title,
+#                 "processing_status": book.processing_status,
+#                 "task_id": book.task_id,
+#                 "content": book.content,
+#                 "pdf_url": book.pdf_url,
+#                 "error_message": book.error_message,
+#                 "created_at": book.created_at,
+#                 "updated_at": book.updated_at
+#             }
             
-            print(f"📊 책 상태 조회 - ID: {book_id}, 상태: {book.processing_status}")
-            return Response(response_data, status=200)
+#             print(f"📊 책 상태 조회 - ID: {book_id}, 상태: {book.processing_status}")
+#             return Response(response_data, status=200)
             
-        except Book.DoesNotExist:
-            return Response({
-                "status": "error",
-                "error_code": 404,
-                "message": "책을 찾을 수 없습니다."
-            }, status=404)
+#         except Book.DoesNotExist:
+#             return Response({
+#                 "status": "error",
+#                 "error_code": 404,
+#                 "message": "책을 찾을 수 없습니다."
+#             }, status=404)
