@@ -109,8 +109,9 @@ def character_generation_eventstream(request, book_id):
         script_cache = caches['script_cache']
         redis_client = get_redis_connection("script_cache")
         
-        # 활성 캐릭터 작업 찾기
+        # 활성 캐릭터 작업 찾기 (진행 중 + 완료된 작업 모두 포함)
         active_task = None
+        completed_task = None
         pattern = f"*:character_task:*"
         
         for key in redis_client.scan_iter(match=pattern):
@@ -133,41 +134,68 @@ def character_generation_eventstream(request, book_id):
                     except (ValueError, TypeError):
                         book_ids_match = str(stored_book_id) == str(book_id)
                     
-                    if (book_ids_match and 
-                        task_data.get('status') in ['PENDING', 'PROCESSING']):
-                        active_task = {'task_id': task_id, 'data': task_data}
-                        break
+                    if book_ids_match:
+                        task_status = task_data.get('status')
+                        if task_status in ['PENDING', 'PROCESSING']:
+                            active_task = {'task_id': task_id, 'data': task_data}
+                            break  # 진행 중인 작업이 우선
+                        elif task_status == 'COMPLETED':
+                            completed_task = {'task_id': task_id, 'data': task_data}
+                            # 완료된 작업은 저장하되 계속 찾기 (진행 중인 작업이 있을 수 있음)
         
-        if not active_task:
+        # 진행 중인 작업이 없으면 완료된 작업 사용
+        target_task = active_task or completed_task
+        
+        if not target_task:
             return JsonResponse({
-                'error': f'책 ID {book_id}에 대한 활성 캐릭터 생성 작업을 찾을 수 없습니다.',
+                'error': f'책 ID {book_id}에 대한 캐릭터 생성 작업을 찾을 수 없습니다.',
                 'suggestion': '먼저 /books/{book_id}/characters/async API로 캐릭터 생성을 시작하세요.',
-                'note': '실시간 알림은 처리 중인 작업에서만 가능합니다.'
+                'note': 'Redis에서 해당 작업 데이터를 찾을 수 없습니다. 작업이 만료되었을 수 있습니다.'
             }, status=404)
         
-        # 즉시 현재 상태 전송
-        task_data = active_task['data']
-        send_event(f'character-{book_id}', 'status', {
-            'task_id': active_task['task_id'],
-            'book_id': book_id,
-            'book_title': task_data.get('book_title'),
-            'status': task_data.get('status'),
-            'step': task_data.get('step'),
-            'message': task_data.get('message'),
-            'progress_percentage': calculate_progress(task_data),
-            'total_chunks': task_data.get('total_chunks'),
-            'processed_chunks': task_data.get('processed_chunks'),
-            'total_characters': task_data.get('total_characters'),
-            'processed_characters': task_data.get('processed_characters')
-        })
+        # 현재 상태 전송
+        task_data = target_task['data']
+        task_status = task_data.get('status')
         
-        return JsonResponse({
-            'message': f'캐릭터 생성 실시간 모니터링 시작',
-            'channel': f'character-{book_id}',
-            'eventstream_url': f'/events/?channel=character-{book_id}',
-            'task_id': active_task['task_id'],
-            'current_status': task_data.get('status')
-        })
+        if task_status == 'COMPLETED':
+            # ✅ 완료된 작업: 즉시 완료 데이터 반환
+            return JsonResponse({
+                'success': True,
+                'status': 'COMPLETED',
+                'message': f'캐릭터 생성이 이미 완료되었습니다!',
+                'task_id': target_task['task_id'],
+                'book_id': book_id,
+                'book_title': task_data.get('book_title'),
+                'total_characters': task_data.get('total_characters', 0),
+                'characters': task_data.get('characters', []),
+                'completed_at': task_data.get('completed_at'),
+                'processing_stats': task_data.get('processing_stats', {}),
+                'note': '캐릭터 생성이 완료되어 실시간 스트림이 아닌 완료 데이터를 반환합니다.'
+            })
+        else:
+            # 🔄 진행 중인 작업: 실시간 스트림 시작
+            send_event(f'character-{book_id}', 'status', {
+                'task_id': target_task['task_id'],
+                'book_id': book_id,
+                'book_title': task_data.get('book_title'),
+                'status': task_data.get('status'),
+                'step': task_data.get('step'),
+                'message': task_data.get('message'),
+                'progress_percentage': calculate_progress(task_data),
+                'total_chunks': task_data.get('total_chunks'),
+                'processed_chunks': task_data.get('processed_chunks'),
+                'total_characters': task_data.get('total_characters'),
+                'processed_characters': task_data.get('processed_characters')
+            })
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'캐릭터 생성 실시간 모니터링 시작',
+                'channel': f'character-{book_id}',
+                'eventstream_url': f'/events/?channel=character-{book_id}',
+                'task_id': target_task['task_id'],
+                'current_status': task_data.get('status')
+            })
         
     except Exception as e:
         logger.error(f'캐릭터 생성 EventStream 오류: {str(e)}')
