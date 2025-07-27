@@ -266,11 +266,12 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Celery 설정
 CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='amqp://admin:1234@backend-rabbitmq:5672//')
-CELERY_RESULT_BACKEND = f'redis://{env("REDIS_HOST", default='backend-redis')}:{env("REDIS_PORT", default='6379')}/0'
+CELERY_RESULT_BACKEND = f"redis://{env('REDIS_HOST', default='backend-redis')}:{env('REDIS_PORT', default='6379')}/0"
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Seoul'
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 
 # Django REST Framework 설정
@@ -349,4 +350,4 @@ SWAGGER_SETTINGS = {
     'DEFAULT_MODEL_RENDERING': 'example'
 }
 
-\n# Django Eventstream 설정\nEVENTSTREAM_REDIS_URL = f"redis://{env('REDIS_HOST', default='backend-redis')}:{env('REDIS_PORT', default='6379')}/3"
+
