@@ -35,6 +35,7 @@ class Video(models.Model):
     thumbnail_url = models.URLField(null=True, blank=True)  # thumnail_url
     
     is_combined = models.BooleanField(default=False, verbose_name="Is Combined Video") # 병합된 영상 여부
+    is_deleted = models.BooleanField(default=True, verbose_name="Is Deleted") # True: 저장, False: 삭제
 
     # Meta 클래스: 모델의 메타데이터 옵션을 정의합니다.
     class Meta:
