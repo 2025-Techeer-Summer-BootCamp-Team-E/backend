@@ -24,14 +24,22 @@ import django_eventstream
 # from django_eventstream import get_event_stream_response
 
 
+from django.urls import path, include, re_path # re_path도 필요
+from config.asgi import application as asgi_app # asgi.py의 application을 임포트
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("metrics", exports.ExportToDjangoView),
     path('books/', include('books.urls')),  # Books 애플리케이션의 URL 포함
-    path('veo3Video/', include('veo3Video.urls')),
+    path('videos/', include('veo3Video.urls')),
     path('characters/', include('characters.urls')),
     path('users/', include('users.urls')),
+
     # path('events/', get_event_stream_response, name='eventstream'),
+
+    
+    re_path(r'^events/', asgi_app), # /events/로 시작하는 모든 요청을 asgi_app으로 보냄
+
     path("", index),
     
     path('', include('django_prometheus.urls')),

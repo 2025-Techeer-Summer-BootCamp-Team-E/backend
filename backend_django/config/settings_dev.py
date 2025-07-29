@@ -95,14 +95,8 @@ INSTALLED_APPS = [
     # API 개발시 생성한 애플리케이션 명시
     'books', # Books 애플리케이션 추가
     'characters', # Characters 애플리케이션 추가
-
     'veo3Video',
-
     'users', # Users 애플리케이션 추가
-    
-
-    # 's3test', # S3 테스트용 앱
-
 
     'django_prometheus', # Django Prometheus 추가
     'rest_framework', # Django REST framework 추가
@@ -237,6 +231,17 @@ CHANNEL_LAYERS = {
 
 
 
+# Channels
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_rabbitmq.core.RabbitmqChannelLayer",
+        "CONFIG": {
+            "host": f"amqp://{env('RABBITMQ_USER', default='guest')}:{env('RABBITMQ_PASSWORD', default='guest')}@backend-rabbitmq:5672",
+        },
+    },
+}
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -287,11 +292,12 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Celery 설정
 CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='amqp://admin:1234@backend-rabbitmq:5672//')
-CELERY_RESULT_BACKEND = f'redis://{env("REDIS_HOST", default="backend-redis")}:{env("REDIS_PORT", default="6379")}/0'
+CELERY_RESULT_BACKEND = f"redis://{env('REDIS_HOST', default='backend-redis')}:{env('REDIS_PORT', default='6379')}/0"
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Seoul'
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 
 # Django REST Framework 설정
@@ -369,4 +375,5 @@ SWAGGER_SETTINGS = {
     'SHOW_EXTENSIONS': True,
     'DEFAULT_MODEL_RENDERING': 'example'
 }
+
 

@@ -226,6 +226,9 @@ def list_videos(user_id: int, is_combined: bool = None):
         if is_combined is not None: # is_combined가 명시적으로 설정된 경우에만 필터링
             filters['is_combined'] = is_combined
 
+        # is_deleted가 True인 (저장된) 비디오만 필터링
+        filters['is_deleted'] = True
+
         videos_from_db = Video.objects.filter(**filters).order_by('-created_at')
 
         videos_data = []

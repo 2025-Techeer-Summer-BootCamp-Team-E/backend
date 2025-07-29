@@ -4,6 +4,7 @@ import subprocess
 from .veo_service import generate_signed_url, generate_video_from_text
 from .models import Video
 from characters.models import Character
+from django_eventstream import send_event
 from google.cloud import storage
 import tempfile
 from datetime import datetime
@@ -15,13 +16,13 @@ load_dotenv()
 GOOGLE_CLOUD_GCS_BUCKET = os.getenv("GOOGLE_CLOUD_GCS_BUCKET")
 
 @shared_task
-def create_video_for_scene(character_id, prompt, title):
+def create_video_for_scene(character_id, prompt, title, channel_id):
     """
-    Celery 작업으로 비디오 생성을 비동기적으로 처리합니다.
-    (나레이션 생성 및 합성 로직 제거됨)
+    Celery 작업으로 비디오 생성을 비동기적으로 처리하고 SSE로 진행 상황을 알립니다.
     """
     try:
-        # 1. 비디오 생성 (기존 로직 재사용)
+        send_event(channel_id, 'message', {'status': 'scene_creation_started', 'title': title})
+
         video_generation_result = generate_video_from_text(prompt=prompt, title=title, character_id=character_id)
         if not video_generation_result or not video_generation_result.get("video_uri"):
             raise Exception("비디오 생성에 실패했습니다.")
@@ -44,6 +45,7 @@ def create_video_for_scene(character_id, prompt, title):
         print(f"Video metadata saved to DB: {title}")
         print("영상생성이 완료되었습니다!")
 
+        send_event(channel_id, 'message', {'status': 'scene_creation_success', 'title': title, 'gcs_uri': final_gcs_uri})
         # combine_videos_task로 전달할 결과 반환
         return {"status": "success", "gcs_uri": final_gcs_uri, "signed_url": signed_url, "title": title}
 
@@ -54,15 +56,20 @@ def create_video_for_scene(character_id, prompt, title):
     except Exception as e:
         error_message = f"Error in create_video_for_scene for title '{title}': {e}"
         print(error_message)
+        send_event(channel_id, 'message', {'status': 'scene_creation_failed', 'title': title, 'error': str(e)})
         # 실패 시에도 명확한 상태를 반환하도록 수정
         return {"status": "failure", "reason": error_message, "title": title}
 
 @shared_task(bind=True)
-def combine_videos_task(self, results, output_title, user_id=None, character_id=None):
+def combine_videos_task(self, results, output_title, user_id=None, character_id=None, channel_id=None):
     """
-    여러 GCS 비디오 URI를 받아 하나의 비디오로 합치고 GCS에 업로드합니다.
-    이 태스크는 Celery chord의 콜백으로 사용됩니다.
+    여러 GCS 비디오 URI를 받아 하나의 비디오로 합치고 GCS에 업로드하며 SSE로 진행 상황을 알립니다.
     """
+    if not channel_id:
+        print("Error: channel_id not provided to combine_videos_task")
+        # Or handle this error appropriately
+        return
+
     video_uris = []
     failed_scenes = []
     for result in results:
@@ -73,12 +80,19 @@ def combine_videos_task(self, results, output_title, user_id=None, character_id=
 
     if failed_scenes:
         error_reason = f"Failed to generate scenes: {', '.join(failed_scenes)}"
+        send_event(channel_id, 'message', {'status': 'error', 'message': error_reason})
+        send_event(channel_id, 'close', {'status': 'failed'})
         self.update_state(state='FAILURE', meta={'reason': error_reason})
         raise Exception(error_reason)
 
     if not video_uris:
-        self.update_state(state='FAILURE', meta={'reason': 'No successful scenes to combine.'})
-        raise Exception("No successful scenes to combine.")
+        error_reason = "No successful scenes to combine."
+        send_event(channel_id, 'message', {'status': 'error', 'message': error_reason})
+        send_event(channel_id, 'close', {'status': 'failed'})
+        self.update_state(state='FAILURE', meta={'reason': error_reason})
+        raise Exception(error_reason)
+
+    send_event(channel_id, 'message', {'status': 'combination_started', 'message': 'All scenes generated. Starting combination.'})
 
     storage_client = storage.Client()
     bucket_name = GOOGLE_CLOUD_GCS_BUCKET.replace("gs://", "").rstrip('/')
@@ -95,10 +109,11 @@ def combine_videos_task(self, results, output_title, user_id=None, character_id=
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{i}.mp4")
             temp_file.close()
             temp_files.append(temp_file.name)
-
             blob = bucket.blob(blob_name)
             blob.download_to_filename(temp_file.name)
             print(f"Downloaded {uri} to {temp_file.name}")
+
+        send_event(channel_id, 'message', {'status': 'combination_progress', 'message': 'Downloaded all videos. Combining with FFmpeg.'})
 
         # 2. FFmpeg를 사용하여 비디오 합치기
         # FFmpeg concat demuxer를 위한 파일 목록 생성
@@ -124,18 +139,17 @@ def combine_videos_task(self, results, output_title, user_id=None, character_id=
         subprocess.run(ffmpeg_command, check=True, capture_output=True)
         print(f"Combined video saved to {combined_video_path.name}")
 
+        send_event(channel_id, 'message', {'status': 'combination_progress', 'message': 'Combination complete. Uploading to GCS.'})
+
         # 3. 합쳐진 비디오를 GCS에 업로드
         base_output_name = output_title.replace(' ', '_')
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         unique_id = uuid.uuid4().hex[:8]
-
-        # character_id가 있으면 파일 이름에 포함
         if character_id:
             output_blob_name = f"combined_videos/{character_id}_{base_output_name}_{timestamp}_{unique_id}.mp4"
         else:
             output_blob_name = f"combined_videos/{base_output_name}_{timestamp}_{unique_id}.mp4"
 
-        # 혹시 모를 충돌 방지 로직 유지
         while bucket.blob(output_blob_name).exists():
             unique_id = uuid.uuid4().hex[:8]
             if character_id:
@@ -161,16 +175,16 @@ def combine_videos_task(self, results, output_title, user_id=None, character_id=
             # 기타 필요한 필드 추가
         )
         print(f"Combined video metadata saved to DB: {output_title}")
+        send_event(channel_id, 'message', {'status': 'process_completed', 'message': 'Successfully generated the full story video.', 'signed_url': signed_url})
+        send_event(channel_id, 'close', {'status': 'success'})
 
         return {"status": "success", "gcs_uri": final_gcs_uri, "signed_url": signed_url}
 
-    except subprocess.CalledProcessError as e:
-        print(f"FFmpeg command failed: {e}")
-        print(f"Stdout: {e.stdout.decode()}")
-        print(f"Stderr: {e.stderr.decode()}")
-        raise
     except Exception as e:
-        print(f"Error combining videos: {e}")
+        error_message = f"Error combining videos: {e}"
+        print(error_message)
+        send_event(channel_id, 'message', {'status': 'error', 'message': error_message})
+        send_event(channel_id, 'close', {'status': 'failed'})
         raise
     finally:
         # 5. 임시 파일 정리
