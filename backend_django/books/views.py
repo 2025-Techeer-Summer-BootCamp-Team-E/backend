@@ -35,10 +35,7 @@ from .models import Book
 from .serializers import BookPdfUploadSerializer
 from characters.models import Character
 from .tasks import process_book_pdf_task
-# from django_eventstream import send_event
 from rest_framework.permissions import IsAuthenticated
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
 
 
 '''SSE 스트리밍 연결을 위한 뷰 함수 - 클라이언트에게 이벤트 메시지 전송용'''
