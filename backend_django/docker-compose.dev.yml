@@ -150,6 +150,53 @@ services:
     networks:
       - backend-net
 
+  # Celery Flower 모니터링 서비스 설정
+  celery-flower:
+    build: .
+    container_name: backend-celery-flower
+    command: sh -c "uv pip install --system --no-cache-dir -r requirements.txt && celery -A config flower --port=5555"
+    volumes:
+      - .:/backend
+    ports:
+      - "25555:5555" # Flower 웹 UI 포트
+    depends_on:
+      backend-rabbitmq:
+        condition: service_healthy
+      backend-redis:
+        condition: service_started
+    env_file:
+      - ./.env.dev
+    environment:
+      DJANGO_ENV: dev
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@backend-rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://backend-redis:6379/0
+    networks:
+      - backend-net
+
+  # Celery Prometheus Exporter 서비스 설정
+  celery-exporter:
+    build: .
+    container_name: backend-celery-exporter
+    command:
+      sh -c "uv pip install --system --no-cache-dir -r requirements.txt && \
+      celery-prometheus-exporter \
+      --broker=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@backend-rabbitmq:5672// \
+      --addr=0.0.0.0:9540"
+    ports:
+      - "29540:9540" # Prometheus 메트릭 포트
+    depends_on:
+      backend-rabbitmq:
+        condition: service_healthy
+      backend-redis:
+        condition: service_started
+    env_file:
+      - ./.env.dev
+    environment:
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@backend-rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://backend-redis:6379/0
+    networks:
+      - backend-net
+
 # volume 설정
 volumes:
   mysql_data:

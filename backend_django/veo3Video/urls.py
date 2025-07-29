@@ -13,6 +13,7 @@ urlpatterns = [
     # SSE events stream
     path('events/<str:channel_id>/', VideoEventStreamView.as_view(), name='video_event_stream'),
     # Video list and creation
+
     path('', VideoListView.as_view(), name='list_videos'),
 
     # Bookmark operations

@@ -246,6 +246,29 @@ CACHES = {
     }
 }
 
+# EventStream 설정
+# 참고: DjangoModelStorage는 DB를, RedisStorage는 Redis를 이벤트 저장소로 사용합니다.
+# RedisStorage가 더 빠르고 확장성이 좋습니다.
+EVENTSTREAM_STORAGE_CLASS = "django_eventstream.storage.DjangoModelStorage"
+print(f"🔍 [SETTINGS] EventStream Django DB 스토리지 사용")
+
+# Celery와 같은 외부 프로세스에서 이벤트를 보내기 위해 GRIP 프록시 모드를 비활성화합니다.
+EVENTSTREAM_ENABLE_GRIP = False
+
+# DjangoModelStorage 사용 시 필요한 폴링 설정
+EVENTSTREAM_POLL_TIMEOUT = 2.0  # 폴링 타임아웃 (초)
+EVENTSTREAM_POLL_INTERVAL = 0.1  # 폴링 간격 (초)
+EVENTSTREAM_MAX_EVENTS_PER_REQUEST = 100  # 한 번에 처리할 최대 이벤트 수
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+             "hosts": [f'redis://{env("REDIS_HOST", default="backend-redis")}:{env("REDIS_PORT", default="6379")}/0'],
+        },
+    },
+}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
