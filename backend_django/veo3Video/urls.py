@@ -11,7 +11,7 @@ urlpatterns = [
 
     # videos/ (POST): 캐시된 스크립트를 기반으로 전체 스토리 비디오 생성을 시작
     # videos/ (GET): 생성된 전체 스토리 비디오 목록을 조회
-    path('videos/', VideoListView.as_view(), name='list_videos'),
+    path('', VideoListView.as_view(), name='list_videos'),
 
     # 영상 북마크
     path('bookmarks/videos/<int:videoId>', VideoBookmarkToggleView.as_view(), name = 'toggle_bookmark'),

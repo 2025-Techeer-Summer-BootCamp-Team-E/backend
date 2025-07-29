@@ -28,7 +28,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path("metrics", exports.ExportToDjangoView),
     path('books/', include('books.urls')),  # Books 애플리케이션의 URL 포함
-    path('veo3Video/', include('veo3Video.urls')),
+    path('videos/', include('veo3Video.urls')),
     path('characters/', include('characters.urls')),
     path('users/', include('users.urls')),
     
