@@ -20,6 +20,9 @@ from django_prometheus import exports
 from config.views import index
 from django.conf import settings
 from django.urls import re_path
+import django_eventstream
+# from django_eventstream import get_event_stream_response
+
 
 from django.urls import path, include, re_path # re_path도 필요
 from config.asgi import application as asgi_app # asgi.py의 application을 임포트
@@ -31,12 +34,17 @@ urlpatterns = [
     path('videos/', include('veo3Video.urls')),
     path('characters/', include('characters.urls')),
     path('users/', include('users.urls')),
+
+    # path('events/', get_event_stream_response, name='eventstream'),
+
     
     re_path(r'^events/', asgi_app), # /events/로 시작하는 모든 요청을 asgi_app으로 보냄
+
     path("", index),
     
     path('', include('django_prometheus.urls')),
 ]
+
 
 '''DEBUG=TRUE, 개발환경일때만 Swagger UI를 사용'''
 if settings.DEBUG:

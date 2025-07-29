@@ -27,3 +27,9 @@ scrape_configs:
     scheme: http #Node Exporter는 HTTP로 실행됨
     static_configs:
       - targets: ["backend-node_exporter:9100"] #Node Exporter 서비스 이름과 포트
+
+  - job_name: "backend-celery" #Celery 작업 및 Worker 메트릭 수집
+    metrics_path: "/metrics" #Celery Prometheus Exporter 메트릭 경로
+    scheme: http #Celery Exporter는 HTTP로 실행됨
+    static_configs:
+      - targets: ["celery-exporter:9540"] #Celery Exporter 서비스 이름과 포트

@@ -38,9 +38,13 @@ def summarize_with_gemini(text: str) -> str:
         # Gemini API 호출
         response = model.generate_content(prompt)
         
-        summary = response.text.strip()
-        # print("📚 책 요약 Gemini 응답:\n", summary)
-        
+        # 안전하게 요약 추출
+        summary = ""
+        try:
+            summary = response.text.strip()
+        except:
+            summary = response.candidates[0].content.parts[0].text.strip()
+
         return summary
         
     except Exception as e:

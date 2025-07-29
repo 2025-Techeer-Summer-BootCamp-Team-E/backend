@@ -16,6 +16,13 @@ def extract_text_from_pdf(file) -> str:
         # PDF 파일 열기 시도
         try:
             doc = fitz.open(stream=pdf_data, filetype="pdf")
+        except TypeError as e:
+            if "Pipeline" in str(e):
+                logger.error(f"PyMuPDF Pipeline 오류 - 라이브러리 버전 문제일 수 있음: {e}")
+                raise ValueError(f"PDF 처리 라이브러리 오류입니다. 관리자에게 문의하세요.")
+            else:
+                logger.error(f"PDF 파일 열기 실패 (타입 오류): {e}")
+                raise ValueError(f"유효하지 않은 PDF 파일입니다: {e}")
         except Exception as e:
             logger.error(f"PDF 파일 열기 실패: {e}")
             raise ValueError(f"유효하지 않은 PDF 파일입니다: {e}")

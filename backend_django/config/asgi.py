@@ -1,9 +1,13 @@
 import os
+
+import django
+
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
 from django.urls import path, re_path
 import django_eventstream # django_eventstream 모듈 전체를 임포트
+
 
 # 환경변수에 따라 설정 파일 선택
 env = os.environ.get('DJANGO_ENV', 'dev')
@@ -13,6 +17,12 @@ if env == 'prod':
 else:
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings_dev')
 
+
+django.setup()
+
+from django.core.asgi import get_asgi_application
+
+# Django-eventstream 5.2.0은 일반 Django URL 라우팅으로 충분함
 # Django의 기본 ASGI 애플리케이션을 먼저 가져옵니다.
 django_asgi_app = get_asgi_application()
 
@@ -30,3 +40,4 @@ application = ProtocolTypeRouter({
     ),
     # (나중에 웹소켓 등을 추가한다면 여기에 'websocket': AuthMiddlewareStack(URLRouter([...])) 을 추가할 수 있습니다.)
 })
+

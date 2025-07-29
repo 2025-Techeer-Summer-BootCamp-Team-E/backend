@@ -12,7 +12,7 @@ google-cloud-aiplatform
 google-generativeai
 boto3
 django-storages
-PyMuPDF==1.23.7
+PyMuPDF==1.24.9
 pdf2image==1.17.0
 pytesseract==0.3.10
 Pillow==10.3.0
@@ -21,6 +21,13 @@ gunicorn==21.2.0
 drf-yasg>=1.21.7
 django-cors-headers>=3.13.0
 celery==5.3.6
+
+flower>=2.0.1  # Celery 모니터링 웹 UI
+celery-prometheus-exporter>=1.7.0  # Celery Prometheus 메트릭 익스포터
+redis==5.0.4 # SSE 라이브러리와의 호환성을 위해 다운그레이드
+# git+https://github.com/Jimmy-web169/django-eventstream.git@master#egg=django-eventstream
+
+
 redis==5.0.4
 django-eventstream==5.2.0  # SSE 라이브러리
 daphne>=4.0.0  # ASGI 서버 (SSE 지원)
@@ -29,3 +36,4 @@ channels
 channels-redis
 
 channels_rabbitmq
+

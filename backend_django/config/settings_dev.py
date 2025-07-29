@@ -31,6 +31,11 @@ environ.Env.read_env(
     env_file=os.path.join(BASE_DIR, '.env.dev')
 )
 
+# 레디스 환경 설정 호출
+REDIS_HOST = env("REDIS_HOST", default="backend-redis")
+REDIS_PORT = env("REDIS_PORT", default="6379")
+
+
 # False if not in os.environ because of casting above
 DEBUG = env.bool("DEBUG", default=True) # 개발환경에서만 사용
 
@@ -100,7 +105,9 @@ INSTALLED_APPS = [
     'storages', # Django Storages 추가
     'drf_yasg', # Django REST framework Swagger 추가
     'corsheaders', # CORS 허용 허락
+
     'django_eventstream', # SSE 실시간 알림
+    'channels', # Django Channels 추가
 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -123,9 +130,13 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_prometheus.middleware.PrometheusAfterMiddleware'
 ]
-CORS_ALLOW_ALL_ORIGINS = True
+
 STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 STATIC_URL='static/'
+
+CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 
 ROOT_URLCONF = 'config.urls'
 
@@ -188,7 +199,7 @@ CACHES = {
     # 기본 캐시 설정 - Celery 작업 결과물 저장
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': f'redis://{env("REDIS_HOST", default="backend-redis")}:{env("REDIS_PORT", default="6379")}/1',
+        'LOCATION': f'redis://{env("REDIS_HOST", default="backend-redis")}:{env("REDIS_PORT", default="6379")}/0',
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
@@ -203,6 +214,21 @@ CACHES = {
         }    
     }
 }
+
+# Django EventStream 제거 - 직접 SSE 구현 사용
+# 이제 Redis pub/sub을 직접 사용하여 SSE 구현
+print(f"🔍 [SETTINGS] Django EventStream 제거됨 - 직접 SSE 구현 사용")
+
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+             "hosts": [f'redis://{env("REDIS_HOST", default="backend-redis")}:{env("REDIS_PORT", default="6379")}/3'],
+        },
+    },
+}
+
 
 
 # Channels
