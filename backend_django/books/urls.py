@@ -9,13 +9,13 @@ from characters.views import (
     # CharacterTaskStatusView  # 더 이상 사용 안함 (polling 방식)
 )
 # EventStream views import
-from .eventstream_views import (
-    # book_processing_eventstream,          # 주석처리됨
-    # character_generation_eventstream,     # 주석처리됨  
-    # script_generation_eventstream,        # 주석처리됨
-    # task_status_eventstream, 
-    push_event
-    )
+# from .eventstream_views import (
+#     # book_processing_eventstream,          # 주석처리됨
+#     # character_generation_eventstream,     # 주석처리됨  
+#     # script_generation_eventstream,        # 주석처리됨
+#     # task_status_eventstream, 
+#     # push_event - 더 이상 사용하지 않음
+# )
 # Streaming 통합 views import
 from .streaming_views import (
     # BookPdfUploadStreamView,
@@ -51,7 +51,7 @@ urlpatterns = [
     # path('<int:book_id>/eventstream/characters', character_generation_eventstream), # 캐릭터 생성 상태
     
     # === task_id 기반 실시간 알림 (권장) ===
-    # path('tasks/<str:task_id>/eventstream', task_status_eventstream), # 범용 작업 상태 (task_id 기반) - 기본 엔드포인트 사용
+    path('tasks/<str:task_id>/eventstream', task_status_eventstream), # 범용 작업 상태 (task_id 기반)
 
     # === 🧪 SSE 테스트용 엔드포인트 ===
     # path('test-sse/', views.test_sse_view, name='test-sse'),

@@ -36,7 +36,7 @@ from .models import Book
 from .serializers import BookPdfUploadSerializer
 from characters.models import Character
 from .tasks import process_book_pdf_task
-from .eventstream_views import push_event
+# from django_eventstream import send_event
 from rest_framework.permissions import IsAuthenticated
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -491,31 +491,31 @@ class BookCharactersView(APIView):
 
 
 # 🧪 SSE 테스트용 뷰 추가
-def test_sse_view(request):
-    """SSE 테스트용 간단한 뷰"""
-    if request.method == "POST":
-        task_id = request.POST.get("task_id", "test123")
+# def test_sse_view(request):
+#     """SSE 테스트용 간단한 뷰"""
+#     if request.method == "POST":
+#         task_id = request.POST.get("task_id", "test123")
         
-        def send_test_events():
-            """백그라운드에서 테스트 이벤트 전송"""
-            import time
-            time.sleep(1)  # 1초 대기
-            push_event(task_id, "progress", {"message": "테스트 시작", "progress": 25})
-            time.sleep(2)  # 2초 대기
-            push_event(task_id, "progress", {"message": "테스트 진행 중", "progress": 75}) 
-            time.sleep(1)  # 1초 대기
-            push_event(task_id, "completed", {"message": "테스트 완료!", "result": "성공"})
+#         def send_test_events():
+#             """백그라운드에서 테스트 이벤트 전송"""
+#             import time
+#             time.sleep(1)  # 1초 대기
+#             push_event(task_id, "progress", {"message": "테스트 시작", "progress": 25})
+#             time.sleep(2)  # 2초 대기
+#             push_event(task_id, "progress", {"message": "테스트 진행 중", "progress": 75}) 
+#             time.sleep(1)  # 1초 대기
+#             push_event(task_id, "completed", {"message": "테스트 완료!", "result": "성공"})
         
-        # 백그라운드 스레드에서 이벤트 전송
-        thread = threading.Thread(target=send_test_events)
-        thread.daemon = True
-        thread.start()
+#         # 백그라운드 스레드에서 이벤트 전송
+#         thread = threading.Thread(target=send_test_events)
+#         thread.daemon = True
+#         thread.start()
         
-        return JsonResponse({
-            "message": "테스트 이벤트 전송 시작됨",
-            "task_id": task_id,
-            "sse_url": f"/events/task-{task_id}/"
-        })
+#         return JsonResponse({
+#             "message": "테스트 이벤트 전송 시작됨",
+#             "task_id": task_id,
+#             "sse_url": f"/events/task-{task_id}/"
+#         })
     
-    # GET 요청시 테스트 페이지 렌더링
-    return render(request, 'test_sse.html')
+#     # GET 요청시 테스트 페이지 렌더링
+#     return render(request, 'test_sse.html')
