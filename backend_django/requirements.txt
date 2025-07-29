@@ -23,7 +23,8 @@ django-cors-headers>=3.13.0
 celery==5.3.6
 redis==5.0.4
 django-eventstream==5.2.0  # SSE 라이브러리
-daphne>=4.0.0  # ASGI 서버 (SSE 지원)
+django-grip # django-eventstream의 미들웨어 의존성
+daphne>=4.0.0  # ASGI 서버 (SSE 지원
 uvicorn>=0.18.0  # ASGI 서버 대안
 channels
 channels-redis

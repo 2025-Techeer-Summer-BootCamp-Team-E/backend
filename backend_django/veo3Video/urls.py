@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from .views import (
     VideoListView, 
     VideoBookmarkToggleView, 
@@ -10,7 +10,7 @@ from .views import (
 
 urlpatterns = [
     # SSE events stream
-    path('events/<str:channel_id>/', events, name='sse_events'),
+    path('events/', include('django_eventstream.urls')),
 
     # Video list and creation
     path('', VideoListView.as_view(), name='list_videos'),

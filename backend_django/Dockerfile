@@ -29,9 +29,7 @@ RUN apt-get update && \
     rm -rf ~/.cache/pip/*
 
 # Python 패키지 설치
-RUN pip install uv && \
-    uv pip install --system --no-cache-dir -r requirements.txt && \
-    rm -rf ~/.cache/pip/*
+RUN pip install uv &&     uv pip install --system --no-cache-dir -r requirements.txt &&     python -c "import django_eventstream; print('django_eventstream installed successfully')" || exit 1 &&     rm -rf ~/.cache/pip/*
 
 # 소스 코드 복사
 COPY . .
