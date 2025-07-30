@@ -428,7 +428,9 @@ scene format:
   - Add gestures and actions (e.g.: "paces thoughtfully while delivering a monologue", "leans in conspiratorially")
   - 1 background sound (e.g.: "soft wind sounds", "gentle string music")
   - Style: Pixar-style animation, ensuring visual consistency across all scenes.
-  ⚠️ Important: Focus on visually enriching scenes with dialogue or monologue at their core, maintaining a consistent Pixar-style animation.
+  - **Dialogue in the prompt should be limited to approximately 6 seconds in length.**
+  Important: Focus on visually enriching scenes with dialogue or monologue at their core, maintaining a consistent Pixar-style animation.
+  Important: For characters speaking: Ensure mouth movements are natural and precisely synchronized with the implied dialogue. Facial expressions and mouth shapes should accurately reflect the spoken words and emotions.
 
   
 
@@ -526,6 +528,7 @@ Output Rules:
 - All strings must be enclosed in double quotation marks (").
 - JSON structure must be strictly correct.
 - Each scene should contain exactly 1-2 characters. Not all supporting roles need to be in every scene.
+- All language used in the prompt and generated video content must be English only.
 
 Each scene must be a JSON object with the following keys:
 - sceneId: sequential number starting from 1

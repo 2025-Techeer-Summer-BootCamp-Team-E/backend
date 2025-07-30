@@ -32,7 +32,7 @@ class Video(models.Model):
 
     character = models.ForeignKey('characters.Character', on_delete=models.CASCADE, related_name='videos', null=True, blank=True)
 
-    thumbnail_url = models.URLField(null=True, blank=True)  # thumnail_url
+    thumbnail_url = models.TextField(null=True, blank=True)  # thumnail_url
     
     is_combined = models.BooleanField(default=False, verbose_name="Is Combined Video") # 병합된 영상 여부
     is_deleted = models.BooleanField(default=True, verbose_name="Is Deleted") # True: 저장, False: 삭제
