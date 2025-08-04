@@ -171,7 +171,7 @@ services:
   backend-celery-exporter:
     build: .
     container_name: backend-celery-exporter
-    command: sh -c "uv pip install --system --no-cache-dir -r requirements.txt && celery-prometheus-exporter --broker-url=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@backend-rabbitmq:5672// --addr=0.0.0.0:9540"
+    command: sh -c "uv pip install --system --no-cache-dir -r requirements.txt && celery-prometheus-exporter --broker amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@backend-rabbitmq:5672// --addr=0.0.0.0:9540"
     ports:
       - "29540:9540" # Prometheus 메트릭 포트 (내부 접근용)
     depends_on:
