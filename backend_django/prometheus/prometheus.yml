@@ -30,6 +30,16 @@ scrape_configs:
 
   - job_name: "backend-celery" #Celery 작업 및 Worker 메트릭 수집
     metrics_path: "/metrics" #Celery Prometheus Exporter 메트릭 경로
-    scheme: http #Celery Exporter는 HTTP로 실행됨
+    # scheme: http #Celery Exporter는 HTTP로 실행됨
     static_configs:
-      - targets: ["celery-exporter:9540"] #Celery Exporter 서비스 이름과 포트
+      - targets: ["backend-celery-worker:5555"] #Celery Exporter 서비스 이름과 포트
+
+  - job_name: "backend-rabbitmq" #RabbitMQ 메트릭 수집
+    metrics_path: "/metrics" #RabbitMQ Prometheus Exporter 메트릭 경로
+    static_configs:
+      - targets: ["backend-rabbitmq:15692"] #RabbitMQ Exporter 서비스 이름과 포트
+
+  - job_name: "backend-redis" #Redis 메트릭 수집
+    metrics_path: "/metrics" #Redis Exporter 메트릭 경로
+    static_configs:
+      - targets: ["backend-redis-exporter:9121"] #Redis Exporter 서비스 이름과 포트
