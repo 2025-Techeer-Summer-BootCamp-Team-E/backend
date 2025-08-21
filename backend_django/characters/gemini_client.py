@@ -30,8 +30,9 @@ def fetch_pdf_from_s3(book_id):
         # S3 URL에서 파일 경로 추출
         # 예: https://bucket-name.s3.region.amazonaws.com/books/file.pdf
         if pdf_url:
-            # URL에서 S3 키 추출
-            s3_key = pdf_url.split('.com/')[-1]
+            # URL에서 S3 키 추출 (개선된 안전한 방식)
+            from books.s3_client import extract_s3_key_from_url
+            s3_key = extract_s3_key_from_url(pdf_url)
             
             # S3에서 PDF 파일 다운로드
             response = s3.get_object(
