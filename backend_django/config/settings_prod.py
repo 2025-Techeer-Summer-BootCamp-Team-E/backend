@@ -307,6 +307,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # 이 부분을 꼭 추가해야 함
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+
+# Celery 설정 (비동기 처리를 위한 필수 설정)
+CELERY_BROKER_URL = env('CELERY_BROKER_URL')  # 환경 변수에서 가져옴
+CELERY_RESULT_BACKEND = f"redis://{env('REDIS_HOST')}:{env('REDIS_PORT')}/0"  # 환경 변수에서 가져옴
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Seoul'
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+
 # Django REST Framework 설정 (배포용)
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

@@ -4,13 +4,21 @@ from celery import Celery
 import django
 import environ
 
-# .env.dev 파일 명시적 로드
+# 환경변수에 따라 설정 파일과 .env 파일 선택
 env = environ.Env()
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-environ.Env.read_env(env_file=os.path.join(BASE_DIR, '.env.dev'))
 
-# Django의 settings 모듈을 Celery의 기본 설정으로 사용하도록 설정합니다.
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings_dev')
+# 환경변수 DJANGO_ENV에 따라 적절한 .env 파일 로드
+django_env = os.environ.get('DJANGO_ENV', 'dev')
+if django_env == 'prod':
+    environ.Env.read_env(env_file=os.path.join(BASE_DIR, '.env.prod'))
+    settings_module = 'config.settings_prod'
+else:
+    environ.Env.read_env(env_file=os.path.join(BASE_DIR, '.env.dev'))
+    settings_module = 'config.settings_dev'
+
+# Django의 settings 모듈을 환경에 맞게 설정
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', settings_module)
 
 # Django 완전 초기화 (설정과 앱 모두)
 django.setup()

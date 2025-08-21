@@ -9,7 +9,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     env_file:
-      - ./.env.dev
+      - ./.env
     ports:
       - "23306:3306"
     volumes:
@@ -48,8 +48,6 @@ services:
     networks:
       - backend-net
 
-  
-
   # Django 애플리케이션 서비스 설정
   backend-django:
     image: backend-django
@@ -58,7 +56,7 @@ services:
     command: gunicorn config.asgi:application -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --reload
     volumes:
       - .:/backend
-      - ./gcp-key.json:/app/gcp-key.json # GCP veo 키 파일 마운트
+      # - ./gcp-key.json:/app/gcp-key.json # GCP veo 키 파일 마운트 (비활성화)
       # - /home/ubuntu/gcp-key.json:/app/gcp-key.json # GCP veo 키 파일 절대 경로로 마운트
     ports:
       - "28000:8000"
@@ -70,10 +68,10 @@ services:
       backend-rabbitmq:
         condition: service_healthy
     env_file:
-      - ./.env.dev
+      - ./.env
     environment:
       DJANGO_ENV: dev # 개발 환경 설정
-      GOOGLE_APPLICATION_CREDENTIALS: /app/gcp-key.json # voe key 컨테이너 내부 경로
+      # GOOGLE_APPLICATION_CREDENTIALS: /app/gcp-key.json # voe key 컨테이너 내부 경로 (비활성화)
       CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@backend-rabbitmq:5672//
       CELERY_RESULT_BACKEND: redis://backend-redis:6379/0
     networks:
@@ -112,7 +110,7 @@ services:
       - GF_AUTH_ANONYMOUS_ORG_ROLE=${GRAFANA_ROLE} # 익명 사용자의 역할 설정 (Admin, Editor, Viewer 중 선택 가능)
       - GF_INSTALL_PLUGINS=farski-blendstat-panel # Grafana 플러그인 설치 (예: Blendstat 패널)
     env_file:
-      - ./.env.dev
+      - ./.env
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning # Grafana 프로비저닝 (설정)
       - grafana_data:/var/lib/grafana # Grafana 데이터 (대시보드 등)
@@ -123,16 +121,15 @@ services:
       - backend-net
 
   # Celery Worker 서비스 설정
-  
 
   # Celery Worker 서비스 설정
-  celery-worker:
+  backend-celery-worker:
     build: .
     container_name: backend-celery-worker
     command: celery -A config worker -l info
     volumes:
       - .:/backend
-      - ./gcp-key.json:/app/gcp-key.json
+      # - ./gcp-key.json:/app/gcp-key.json # GCP 키 파일 마운트 (비활성화)
     depends_on:
       backend-rabbitmq:
         condition: service_healthy
@@ -141,17 +138,17 @@ services:
       backend-database:
         condition: service_healthy
     env_file:
-      - ./.env.dev
+      - ./.env
     environment:
       DJANGO_ENV: dev
-      GOOGLE_APPLICATION_CREDENTIALS: /app/gcp-key.json
+      # GOOGLE_APPLICATION_CREDENTIALS: /app/gcp-key.json # GCP 인증 정보 (비활성화)
       CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@backend-rabbitmq:5672//
       CELERY_RESULT_BACKEND: redis://backend-redis:6379/0
     networks:
       - backend-net
 
   # Celery Flower 모니터링 서비스 설정
-  celery-flower:
+  backend-celery-flower:
     build: .
     container_name: backend-celery-flower
     command: sh -c "uv pip install --system --no-cache-dir -r requirements.txt && celery -A config flower --port=5555"
@@ -165,7 +162,7 @@ services:
       backend-redis:
         condition: service_started
     env_file:
-      - ./.env.dev
+      - ./.env
     environment:
       DJANGO_ENV: dev
       CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@backend-rabbitmq:5672//
@@ -174,7 +171,7 @@ services:
       - backend-net
 
   # Celery Prometheus Exporter 서비스 설정
-  celery-exporter:
+  backend-celery-exporter:
     build: .
     container_name: backend-celery-exporter
     command:
@@ -190,7 +187,7 @@ services:
       backend-redis:
         condition: service_started
     env_file:
-      - ./.env.dev
+      - ./.env
     environment:
       CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@backend-rabbitmq:5672//
       CELERY_RESULT_BACKEND: redis://backend-redis:6379/0

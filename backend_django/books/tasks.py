@@ -63,10 +63,10 @@ def process_book_pdf_task(self, book_id, pdf_file_content, pdf_file_name):
         print(f"책 PDF 처리 시작 - ID: {book_id}, Task: {task_id}, 제목: {book.title}")
         print(f"[DEBUG] 채널명 예상: task-{task_id}")
         
-        # 클라이언트 연결 시간 확보를 위한 지연 (5초)
-        print(f"[DEBUG] 클라이언트 연결 대기 중... (3초)")
-        import time
-        time.sleep(3)
+        # 클라이언트 연결 시간 확보를 위한 지연 (5초) - 병렬 처리에서는 불필요하므로 주석 처리
+        # print(f"[DEBUG] 클라이언트 연결 대기 중... (3초)")
+        # import time
+        # time.sleep(3)
         
         # 작업 시작 이벤트 전송 
         try:

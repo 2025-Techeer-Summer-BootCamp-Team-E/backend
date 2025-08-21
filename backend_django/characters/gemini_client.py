@@ -30,8 +30,9 @@ def fetch_pdf_from_s3(book_id):
         # S3 URL에서 파일 경로 추출
         # 예: https://bucket-name.s3.region.amazonaws.com/books/file.pdf
         if pdf_url:
-            # URL에서 S3 키 추출
-            s3_key = pdf_url.split('.com/')[-1]
+            # URL에서 S3 키 추출 (개선된 안전한 방식)
+            from books.s3_client import extract_s3_key_from_url
+            s3_key = extract_s3_key_from_url(pdf_url)
             
             # S3에서 PDF 파일 다운로드
             response = s3.get_object(
@@ -836,9 +837,9 @@ JSON 형식:
 
     for retry_count in range(max_retries + 1):
         try:
-            # API 호출 간격 조절 (Rate Limit 방지)
-            if retry_count == 0:
-                time.sleep(random.uniform(0.5, 1.5))
+            # API 호출 간격 조절 (Rate Limit 방지) - 병렬 처리에서는 불필요하므로 주석 처리
+            # if retry_count == 0:
+            #     time.sleep(random.uniform(0.5, 1.5))
             
             print(f"🎬 '{character['characterName']}' 장면 생성 시작... (시도 {retry_count + 1}/{max_retries + 1})")
             
